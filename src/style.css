@@ -28,6 +28,20 @@
   --color-tile: #0b1220;
 }
 
+/* Cursor de mano en todo lo pulsable (Tailwind v4 lo deja en "default" para los botones) */
+@layer base {
+  button:not(:disabled),
+  [role='button'],
+  select,
+  summary,
+  label:has(input[type='checkbox']) {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
 html {
   color-scheme: light;
   -webkit-tap-highlight-color: transparent;

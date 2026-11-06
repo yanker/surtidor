@@ -86,4 +86,33 @@ const nuevo = html.includes(ini)
   : html.replace('</head>', `    ${bloque}\n  </head>`);
 await writeFile('index.html', nuevo);
 
-console.log(`Iconos y ${links.length} pantallas de inicio generadas`);
+// ---------- Imagen para compartir en redes (Open Graph, 1200x630) ----------
+{
+  const W = 1200;
+  const H = 630;
+  const icono = await sharp(svgSplash, { density: 600 }).resize(260, 260).png().toBuffer();
+  const capa = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+    <defs>
+      <linearGradient id="f" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#0b1730"/><stop offset="1" stop-color="#1e3a8a"/>
+      </linearGradient>
+      <radialGradient id="b" cx="0.85" cy="0.1" r="0.6">
+        <stop offset="0" stop-color="#38bdf8" stop-opacity="0.35"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <rect width="${W}" height="${H}" fill="url(#f)"/>
+    <rect width="${W}" height="${H}" fill="url(#b)"/>
+    <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
+      <text x="430" y="270" font-size="104" font-weight="800" fill="#ffffff">Surtidor</text>
+      <text x="434" y="340" font-size="40" font-weight="600" fill="#bfdbfe">Gasolineras baratas cerca de ti</text>
+      <text x="434" y="400" font-size="28" font-weight="500" fill="#93c5fd">Precios oficiales en tiempo real · Sin cookies</text>
+      <text x="434" y="500" font-size="30" font-weight="700" fill="#ffffff">surtidor.vercel.app</text>
+    </g>
+  </svg>`);
+  await sharp(capa)
+    .composite([{ input: icono, left: 110, top: Math.round((H - 260) / 2) }])
+    .png({ compressionLevel: 9 })
+    .toFile('public/og-image.png');
+}
+
+console.log(`Iconos, ${links.length} pantallas de inicio e imagen para compartir generadas`);

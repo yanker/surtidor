@@ -3,7 +3,7 @@
 //  - /api/estaciones: network-first con copia en caché → últimos precios si no hay red
 //  - Teselas del mapa y demás orígenes: se dejan pasar
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE_APP = `surtidor-app-${VERSION}`;
 const CACHE_API = `surtidor-api-${VERSION}`;
 const PRECACHE = ['/', '/manifest.webmanifest', '/icon.svg', '/icons/icon-192.png'];

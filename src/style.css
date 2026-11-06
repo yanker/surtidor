@@ -122,3 +122,13 @@ html.dark {
 .aparecer {
   animation: aparecer 0.35s ease-out both;
 }
+
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+.subir {
+  animation: subir 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}

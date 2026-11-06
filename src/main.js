@@ -136,6 +136,8 @@ async function cargar({ forzar = false } = {}) {
   } finally {
     estado.cargando = false;
     render();
+    // Con las gasolineras ya en pantalla es buen momento para invitar a instalar
+    if (estado.datos && typeof programarAviso === 'function') programarAviso(2500);
   }
 }
 
@@ -563,20 +565,93 @@ addEventListener('scroll', mostrarArriba, { passive: true });
 btnArriba.addEventListener('click', () => scrollTo({ top: 0, behavior: 'smooth' }));
 mostrarArriba();
 
-// Instalación PWA
+// ---------- Invitación a instalar la PWA ----------
+// - Chrome/Edge/Android: capturamos `beforeinstallprompt` y mostramos nuestra tarjeta con «Instalar».
+// - iPhone/iPad: no hay evento, así que la tarjeta explica Compartir → «Añadir a pantalla de inicio».
+// - No se muestra si ya está instalada; «Ahora no» la silencia una semana.
+const CLAVE_AVISO = 'surtidor:aviso-instalar';
+const SILENCIO_MS = 7 * 24 * 60 * 60 * 1000;
+const esIOS =
+  /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const yaInstalada = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 let eventoInstalar = null;
+let avisoPendiente = null; // { cuando, id }
+let avisoMostrado = false;
+
+const silenciada = () => {
+  try {
+    return Date.now() - Number(localStorage.getItem(CLAVE_AVISO) || 0) < SILENCIO_MS;
+  } catch {
+    return false;
+  }
+};
+const puedeInstalarse = () => !yaInstalada() && (eventoInstalar || esIOS);
+
+function mostrarAviso() {
+  if (!puedeInstalarse()) return;
+  $('#aviso-ios').classList.toggle('hidden', !esIOS || !!eventoInstalar);
+  $('#aviso-instalar-btn').textContent = eventoInstalar ? 'Instalar' : 'Entendido';
+  $('#aviso-instalar').classList.remove('hidden');
+  btnArriba.style.bottom = `${$('#aviso-instalar').offsetHeight + 8}px`;
+}
+function ocultarAviso({ silenciar = false } = {}) {
+  $('#aviso-instalar').classList.add('hidden');
+  btnArriba.style.bottom = '';
+  if (silenciar) {
+    try {
+      localStorage.setItem(CLAVE_AVISO, String(Date.now()));
+    } catch {}
+  }
+}
+function actualizarBotonCabecera() {
+  $('#btn-instalar').classList.toggle('hidden', !puedeInstalarse());
+}
+
+// Se invita unos segundos después de mostrar las primeras gasolineras (o a los 8 s como tarde)
+function programarAviso(ms) {
+  if (avisoMostrado || silenciada() || !puedeInstalarse()) return;
+  const cuando = Date.now() + ms;
+  if (avisoPendiente && avisoPendiente.cuando <= cuando) return; // ya hay uno antes
+  if (avisoPendiente) clearTimeout(avisoPendiente.id);
+  avisoPendiente = {
+    cuando,
+    id: setTimeout(() => {
+      avisoMostrado = true;
+      mostrarAviso();
+    }, ms),
+  };
+}
+
+async function instalar() {
+  if (eventoInstalar) {
+    eventoInstalar.prompt();
+    const { outcome } = await eventoInstalar.userChoice;
+    eventoInstalar = null;
+    ocultarAviso({ silenciar: outcome !== 'accepted' });
+    actualizarBotonCabecera();
+  } else {
+    ocultarAviso({ silenciar: true }); // iOS: «Entendido»
+  }
+}
+
 window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
+  e.preventDefault(); // sustituimos la mini-barra del navegador por nuestra tarjeta
   eventoInstalar = e;
-  $('#btn-instalar').classList.remove('hidden');
+  actualizarBotonCabecera();
+  programarAviso(estado.datos ? 2500 : 8000);
 });
-$('#btn-instalar').addEventListener('click', async () => {
-  if (!eventoInstalar) return;
-  eventoInstalar.prompt();
-  await eventoInstalar.userChoice;
+window.addEventListener('appinstalled', () => {
   eventoInstalar = null;
-  $('#btn-instalar').classList.add('hidden');
+  ocultarAviso({ silenciar: true });
+  actualizarBotonCabecera();
 });
+$('#btn-instalar').addEventListener('click', () => (eventoInstalar ? instalar() : mostrarAviso()));
+$('#aviso-instalar-btn').addEventListener('click', instalar);
+$('#aviso-luego').addEventListener('click', () => ocultarAviso({ silenciar: true }));
+$('#aviso-cerrar').addEventListener('click', () => ocultarAviso({ silenciar: true }));
+
+actualizarBotonCabecera();
+if (esIOS) programarAviso(8000);
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));

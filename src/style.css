@@ -1,0 +1,110 @@
+@import 'tailwindcss';
+
+/* Modo oscuro por clase (.dark en <html>), controlado por el sistema o por el botón */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  /* Colores semánticos (tema claro) */
+  --color-bg: #eef3fb;
+  --color-fg: #0b1730;
+  --color-muted: #5b6b85;
+  --color-subtle: #8a99b3;
+  --color-card: #ffffff;
+  --color-field: #eef3fb;
+  --color-line: #dbe4f3;
+  --color-tile: #e8eef8;
+}
+
+.dark {
+  --color-bg: #030a1a;
+  --color-fg: #e8efff;
+  --color-muted: #94a6c6;
+  --color-subtle: #61728f;
+  --color-card: #0a1630;
+  --color-field: #0f1e3d;
+  --color-line: #1a2b4f;
+  --color-tile: #0b1220;
+}
+
+html {
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Marcadores de precio en el mapa */
+.pin-precio {
+  background: transparent;
+  border: 0;
+}
+.pin-precio > div {
+  transform: translate(-50%, -100%);
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+}
+
+.leaflet-container {
+  background: var(--color-tile);
+  font-family: inherit;
+}
+/* Mapa oscuro: invertimos las teselas claras de OSM */
+.dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(200deg) brightness(0.9) contrast(0.85) saturate(0.5);
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--color-card);
+  color: var(--color-fg);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+}
+.leaflet-popup-content {
+  margin: 12px 14px;
+}
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--color-muted);
+}
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--color-card) 75%, transparent) !important;
+  color: var(--color-muted) !important;
+}
+.leaflet-control-attribution a {
+  color: var(--color-fg) !important;
+}
+.leaflet-bar a {
+  background: var(--color-card);
+  color: var(--color-fg);
+  border-color: var(--color-line);
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.girando {
+  animation: girar 0.9s linear infinite;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.aparecer {
+  animation: aparecer 0.35s ease-out both;
+}

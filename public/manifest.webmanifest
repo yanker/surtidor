@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "Surtidor · Gasolineras baratas cerca de ti",
+  "short_name": "Surtidor",
+  "description": "Precios de carburantes en tiempo real de las gasolineras más cercanas a tu ubicación.",
+  "lang": "es",
+  "dir": "ltr",
+  "start_url": "/?origen=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#0b1730",
+  "theme_color": "#0b1730",
+  "categories": ["travel", "utilities", "navigation"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "screenshots": [
+    { "src": "/screenshots/movil-lista.png", "sizes": "1080x2340", "type": "image/png", "form_factor": "narrow", "label": "Gasolineras más baratas cerca de ti" },
+    { "src": "/screenshots/movil-mapa.png", "sizes": "1080x2340", "type": "image/png", "form_factor": "narrow", "label": "Mapa con los precios" },
+    { "src": "/screenshots/escritorio.png", "sizes": "1920x1080", "type": "image/png", "form_factor": "wide", "label": "Surtidor en escritorio" }
+  ],
+  "shortcuts": [
+    { "name": "Gasolina 95", "url": "/?combustible=g95", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Diésel", "url": "/?combustible=diesel", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

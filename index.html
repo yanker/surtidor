@@ -91,6 +91,7 @@
             <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>
             <span id="ubicacion-texto" class="truncate">Obteniendo ubicación…</span>
           </button>
+          <p id="subtitulo-viaje" class="hidden truncate text-sm text-muted">Gasolineras baratas en tu ruta</p>
         </div>
         <button id="btn-instalar" class="hidden rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow hover:bg-blue-500">Instalar</button>
         <button id="btn-tema" aria-label="Cambiar tema" title="Cambiar tema claro / oscuro" class="grid h-10 w-10 place-items-center rounded-xl bg-card ring-1 ring-line transition hover:text-blue-500 active:scale-95">
@@ -104,6 +105,56 @@
         </button>
       </header>
 
+      <!-- Modo: cerca de mí / planificar viaje -->
+      <div id="modos" class="mt-3 grid grid-cols-2 gap-1 rounded-2xl bg-card p-1 ring-1 ring-line" role="tablist" aria-label="Modo">
+        <button data-modo="cerca" role="tab" class="modo flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-base font-semibold">
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg>
+          Cerca de mí
+        </button>
+        <button data-modo="viaje" role="tab" class="modo flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-base font-semibold">
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21 9 3M20 21 15 3M12 6v2M12 11v2M12 16v2"/></svg>
+          Viaje
+        </button>
+      </div>
+
+      <!-- Planificador de viaje -->
+      <section id="panel-viaje" class="mt-3 hidden space-y-3">
+        <form id="form-viaje" class="rounded-3xl bg-card/80 p-3 shadow-sm ring-1 ring-line backdrop-blur" autocomplete="off">
+          <div class="relative space-y-2 pr-12">
+            <label class="flex items-center gap-3 rounded-2xl bg-field px-3 ring-1 ring-line focus-within:ring-2 focus-within:ring-blue-500">
+              <span class="h-3 w-3 shrink-0 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20"></span>
+              <input id="viaje-origen" name="origen" placeholder="Mi ubicación" aria-label="Origen" class="min-w-0 flex-1 bg-transparent py-3 text-base font-semibold placeholder:text-blue-600 placeholder:font-semibold focus:outline-none dark:placeholder:text-blue-400" />
+            </label>
+            <label class="flex items-center gap-3 rounded-2xl bg-field px-3 ring-1 ring-line focus-within:ring-2 focus-within:ring-blue-500">
+              <span class="h-3 w-3 shrink-0 rounded-full bg-rose-500 ring-4 ring-rose-500/20"></span>
+              <input id="viaje-destino" name="destino" required placeholder="¿A dónde vas? Ej.: Madrid" aria-label="Destino" class="min-w-0 flex-1 bg-transparent py-3 text-base font-semibold placeholder:font-normal placeholder:text-subtle focus:outline-none" />
+            </label>
+            <button id="btn-intercambiar" type="button" aria-label="Intercambiar origen y destino" title="Intercambiar origen y destino"
+              class="absolute right-0 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-field text-muted ring-1 ring-line transition hover:text-blue-600 active:scale-95">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M3 8l4-4 4 4M17 20V4M21 16l-4 4-4-4"/></svg>
+            </button>
+          </div>
+          <div class="mt-2 grid grid-cols-[1fr_1.4fr] gap-2">
+            <label class="relative">
+              <span class="pointer-events-none absolute left-3 top-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">Desvío máx.</span>
+              <select id="desvio" class="w-full appearance-none rounded-2xl bg-field px-3 pb-2 pt-5 text-base font-semibold ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="1">1 km</option>
+                <option value="2">2 km</option>
+                <option value="5">5 km</option>
+              </select>
+              <svg class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+            </label>
+            <button id="btn-buscar-rutas" class="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-base font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 active:scale-[0.98]">
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+              Buscar rutas
+            </button>
+          </div>
+          <p id="error-viaje" class="mt-2 hidden px-1 text-sm font-semibold text-rose-600 dark:text-rose-400"></p>
+        </form>
+        <div id="rutas" class="space-y-2"></div>
+        <div id="barra-viaje"></div>
+      </section>
+
       <!-- Controles -->
       <section class="mt-3 space-y-3 rounded-3xl bg-card/80 p-3 shadow-sm ring-1 ring-line backdrop-blur">
         <div>
@@ -114,7 +165,18 @@
           </button>
         </div>
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_auto]">
-          <label class="relative">
+          <label id="label-tramo" class="relative hidden">
+            <span class="pointer-events-none absolute left-3 top-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">Mostrar</span>
+            <select id="tramo" class="w-full appearance-none rounded-2xl bg-field px-3 pb-2 pt-5 text-base font-semibold ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="0">Toda la ruta</option>
+              <option value="25">Próximos 25 km</option>
+              <option value="50">Próximos 50 km</option>
+              <option value="100">Próximos 100 km</option>
+              <option value="200">Próximos 200 km</option>
+            </select>
+            <svg class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </label>
+          <label id="label-radio" class="relative">
             <span class="pointer-events-none absolute left-3 top-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">Radio</span>
             <select id="radio" class="w-full appearance-none rounded-2xl bg-field px-3 pb-2 pt-5 text-base font-semibold ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="5">5 km</option>
@@ -160,8 +222,11 @@
       <main class="mt-3 flex-1">
         <div id="estado"></div>
         <ul id="lista" class="space-y-2.5"></ul>
-        <div id="mapa-wrap" class="hidden overflow-hidden rounded-3xl ring-1 ring-line">
+        <div id="mapa-wrap" class="relative hidden overflow-hidden rounded-3xl ring-1 ring-line">
           <div id="mapa" class="h-[65dvh] w-full"></div>
+          <button id="btn-centrar" type="button" class="absolute right-3 top-3 z-[500] hidden items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500">
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Centrar
+          </button>
         </div>
       </main>
 

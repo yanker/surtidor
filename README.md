@@ -40,7 +40,8 @@ Surtidor usa la ubicación de tu móvil y te muestra las gasolineras que tienes 
 - 💶 **Resumen de la zona**: la más barata, el precio medio y cuánto ahorras llenando 50 L frente a la media.
 - 🎨 **Precios por colores**: verde, ámbar o rojo según lo barata o cara que sea cada gasolinera respecto a las de alrededor.
 - 🗺️ **Mapa** con el precio sobre cada gasolinera y el círculo del radio de búsqueda.
-- 🧭 **Cómo llegar** con un toque (abre la navegación en Google Maps).
+- 🧭 **Cómo llegar** con un toque (Google Maps, Waze o Apple Maps) y **ficha** de cada gasolinera con todos sus precios y su horario.
+- 🛣️ **Planificador de viajes**: indica origen y destino (por ejemplo, Jerez → Madrid), elige entre las rutas alternativas y verás las gasolineras a menos de 1, 2 o 5 km de la carretera. Con **Iniciar viaje** el mapa te sigue por GPS y te enseña solo las que tienes por delante (toda la ruta o los próximos 25-200 km), manteniendo la pantalla encendida.
 - 🌗 **Tema claro y oscuro**: sigue al sistema y recuerda tu elección.
 - 📲 **PWA completa**: instalable, funciona sin conexión con los últimos precios consultados, pantallas de inicio para iOS y accesos directos desde el icono.
 - 🔒 **Sin cookies ni seguimiento**: no hay analítica; las preferencias se guardan solo en el navegador del usuario.
@@ -101,15 +102,19 @@ Abre `http://localhost:5173`. El servidor de desarrollo ya sirve `/api/estacione
 2. En Vercel, **Add New → Project** e importa el repositorio.
 3. Despliega. No hace falta configurar nada ni definir variables de entorno.
 
+> El planificador usa por defecto el servidor público de demostración de [OSRM](https://project-osrm.org/), pensado para un uso moderado. Si la app recibe mucho tráfico, define la variable de entorno `OSRM_URL` con un servidor OSRM propio.
+
 `vercel.json` ya indica el build de Vite, la región de la función (`cdg1`, París, cerca de España) y las cabeceras del service worker y del manifest.
 
 ## Estructura
 
 ```
 ├── api/
-│   └── estaciones.js        # Función serverless de Vercel
+│   ├── estaciones.js        # Función serverless: gasolineras cercanas
+│   └── ruta.js              # Función serverless: rutas y gasolineras por el camino
 ├── lib/
-│   └── estaciones.js        # Descarga, compactado, caché y filtrado por distancia (compartido)
+│   ├── estaciones.js        # Descarga, compactado, caché y filtrado por distancia (compartido)
+│   └── ruta.js              # Rutas (OSRM), simplificación y gasolineras a lo largo de la ruta
 ├── src/
 │   ├── main.js              # Interfaz, geolocalización, mapa y estado
 │   ├── horario.js           # Intérprete de horarios («¿está abierta ahora?»)
@@ -159,6 +164,10 @@ Abre `http://localhost:5173`. El servidor de desarrollo ya sirve `/api/estacione
 }
 ```
 
+`GET /api/ruta?o=36.685,-6.137&d=40.417,-3.704&desvio=2`
+
+Devuelve las rutas alternativas entre origen (`o`) y destino (`d`) con su geometría simplificada y las gasolineras a menos de `desvio` km (1, 2 o 5). Cada gasolinera añade `a` (punto kilométrico en la ruta) y `dv` (km hasta la carretera).
+
 Claves de `pr`: `g95`, `g95e10`, `g98`, `diesel`, `dieselPlus`, `glp`, `gnc`, `adblue` (€/L).
 
 ## Privacidad
@@ -166,7 +175,8 @@ Claves de `pr`: `g95`, `g95e10`, `g98`, `diesel`, `dieselPlus`, `glp`, `gnc`, `a
 - **No usa cookies** ni herramientas de analítica o seguimiento.
 - El tema y los filtros elegidos se guardan en el `localStorage` del navegador y nunca salen del dispositivo.
 - La ubicación solo se usa para pedir las gasolineras cercanas y no se guarda en ningún servidor.
-- Servicios de terceros que usa la app: **OpenStreetMap** (teselas del mapa) y **Nominatim** (nombre de la zona y búsqueda de localidades).
+- Servicios de terceros que usa la app: **OpenStreetMap** (teselas del mapa), **Nominatim** (nombre de la zona y búsqueda de localidades) y **OSRM** (cálculo de rutas del planificador).
+- Durante un viaje la posición se procesa solo en el dispositivo; el viaje elegido se guarda en el `localStorage` para recuperarlo si cierras la app.
 
 ## Fuente de los datos
 

@@ -3,6 +3,7 @@ import './style.css';
 import 'leaflet/dist/leaflet.css';
 import { estaAbierta } from './horario.js';
 import { UPSTREAM, compactar, filtrarCercanas, distanciaKm } from '../lib/estaciones.js';
+import { DESVIOS, calcularViaje, prepararRuta, proyectar } from '../lib/ruta.js';
 
 // ---------- Configuración ----------
 // Cada combustible tiene su color claro (`suave`); el seleccionado se marca en el azul del tema
@@ -27,6 +28,7 @@ const COMBUSTIBLES = [
 const LITROS_DEPOSITO = 50;
 const CLAVE_PREFS = 'surtidor:prefs';
 const CLAVE_TEMA = 'surtidor:tema';
+const CLAVE_VIAJE = 'surtidor:viaje';
 
 // ---------- Estado ----------
 const guardado = leer(CLAVE_PREFS, {});
@@ -37,8 +39,19 @@ const estado = {
   orden: guardado.orden || 'precio',
   soloAbiertas: guardado.soloAbiertas ?? true,
   vista: guardado.vista || 'lista',
+  modo: guardado.modo === 'viaje' ? 'viaje' : 'cerca', // «Cerca de mí» o «Viaje»
+  desvio: DESVIOS.includes(guardado.desvio) ? guardado.desvio : 2, // km máx. desde la carretera
+  tramo: guardado.tramo ?? 0, // km por delante que se muestran en el viaje (0 = toda la ruta)
   datos: null, // { fecha, estaciones, radio, lat, lon }
   cargando: false,
+  // Viaje: { origen, destino, desvio, fecha, rutas: [{ resumen, km, min, coords, estaciones }], elegida }
+  viaje: leer(CLAVE_VIAJE, null),
+  viajeCargando: false,
+  viajeError: null,
+  // Seguimiento en marcha: { lat, lon, precision, km (punto kilométrico), desvio, kmPintado }
+  gps: null,
+  siguiendo: false,
+  centrar: true, // el mapa sigue al usuario mientras no lo mueva a mano
 };
 let ultimo = null; // { lista, min, max, media } de lo último pintado (para la ficha)
 let enfocar = null; // id de gasolinera a centrar en el mapa
@@ -75,9 +88,9 @@ function leer(clave, porDefecto) {
   }
 }
 function guardarPrefs() {
-  const { combustible, radio, orden, soloAbiertas, vista } = estado;
+  const { combustible, radio, orden, soloAbiertas, vista, modo, desvio, tramo } = estado;
   try {
-    localStorage.setItem(CLAVE_PREFS, JSON.stringify({ combustible, radio, orden, soloAbiertas, vista }));
+    localStorage.setItem(CLAVE_PREFS, JSON.stringify({ combustible, radio, orden, soloAbiertas, vista, modo, desvio, tramo }));
   } catch {}
 }
 
@@ -145,6 +158,7 @@ async function cargar({ forzar = false } = {}) {
 }
 
 function enRadio() {
+  if (estado.modo === 'viaje') return enRuta();
   if (!estado.datos || !estado.pos) return [];
   const { lat, lon } = estado.pos;
   const ahora = new Date();
@@ -185,13 +199,16 @@ function pedirUbicacion() {
   );
 }
 
+async function direccionDe(pos) {
+  const r = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&accept-language=es&lat=${pos.lat}&lon=${pos.lon}`,
+  );
+  return (await r.json()).address || {};
+}
+
 async function nombrarUbicacion(pos) {
   try {
-    const r = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&accept-language=es&lat=${pos.lat}&lon=${pos.lon}`,
-    );
-    const j = await r.json();
-    const a = j.address || {};
+    const a = await direccionDe(pos);
     const nombre = a.suburb || a.city || a.town || a.village || a.municipality;
     if (nombre && estado.pos === pos) {
       pos.etiqueta = nombre;
@@ -255,7 +272,18 @@ function renderControles() {
   document.querySelectorAll('.vista').forEach((b) => {
     b.className = `vista rounded-xl px-5 py-2 text-base font-semibold transition ${b.dataset.vista === estado.vista ? SEG_ON : SEG_OFF}`;
   });
-  $('#icono-refrescar').classList.toggle('girando', estado.cargando);
+  const viaje = estado.modo === 'viaje';
+  document.querySelectorAll('.modo').forEach((b) => {
+    const on = b.dataset.modo === estado.modo;
+    b.setAttribute('aria-selected', String(on));
+    b.className = `modo flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-base font-semibold transition ${on ? SEG_ON : SEG_OFF}`;
+  });
+  $('#label-radio').classList.toggle('hidden', viaje);
+  $('#label-tramo').classList.toggle('hidden', !viaje);
+  $('#tramo').value = String(estado.tramo);
+  $('#ubicacion').classList.toggle('hidden', viaje);
+  $('#subtitulo-viaje').classList.toggle('hidden', !viaje);
+  $('#icono-refrescar').classList.toggle('girando', estado.cargando || estado.viajeCargando);
 }
 
 // Verde / ámbar / rojo para el precio relativo (semántico, se mantiene en ambos temas)
@@ -279,11 +307,26 @@ function render() {
   const todas = enRadio();
   const lista = visibles(todas);
   const c = estado.combustible;
-  const hayDatos = !!estado.datos && !!estado.pos;
+  const viaje = estado.modo === 'viaje';
+  const hayDatos = viaje ? !!rutaElegida() : !!estado.datos && !!estado.pos;
+  renderViaje();
 
   // Estado (cargando / error / sin ubicación / vacío)
   let htmlEstado = '';
-  if (!estado.pos && !estado.cargando) {
+  if (viaje) {
+    if (estado.viajeCargando) htmlEstado = esqueleto('Calculando rutas y buscando gasolineras por el camino…');
+    else if (hayDatos && !lista.length) {
+      const cerradas = todas.length && estado.soloAbiertas;
+      htmlEstado = panel(
+        '🔎',
+        cerradas ? 'Todas cerradas ahora mismo' : 'Sin gasolineras en este tramo',
+        cerradas
+          ? `Hay ${todas.length} en este tramo, pero ninguna abierta según su horario.`
+          : 'Prueba a ampliar el desvío o el tramo, o a cambiar de combustible.',
+        cerradas ? boton('ver-cerradas', 'Ver también cerradas') : '',
+      );
+    }
+  } else if (!estado.pos && !estado.cargando) {
     htmlEstado = panelSinUbicacion();
   } else if (estado.cargando && !hayDatos) {
     htmlEstado = esqueleto();
@@ -310,9 +353,10 @@ function render() {
   $('#lista').classList.toggle('hidden', !mostrar || estado.vista !== 'lista');
   $('#mapa-wrap').classList.toggle('hidden', !mostrar || estado.vista !== 'mapa');
 
-  if (estado.datos?.fecha) {
-    $('#fecha-datos').textContent = `Precios actualizados: ${estado.datos.fecha}`;
-    $('#info-fecha').textContent = ` · Actualizado el ${fechaBonita(estado.datos.fecha)}`;
+  const fecha = viaje ? estado.viaje?.fecha : estado.datos?.fecha;
+  if (fecha) {
+    $('#fecha-datos').textContent = `Precios actualizados: ${fecha}`;
+    $('#info-fecha').textContent = ` · Actualizado el ${fechaBonita(fecha)}`;
     $('#info-datos').classList.replace('hidden', 'flex');
   }
   if (!mostrar) {
@@ -332,14 +376,14 @@ function render() {
     <span class="text-3xl font-extrabold tabular-nums tracking-tight text-fg">${lista.length}</span>
     <span class="font-semibold">${lista.length === 1 ? 'gasolinera' : 'gasolineras'}${estado.soloAbiertas ? ' abiertas' : ''}</span>
     <span class="mx-1 text-subtle">·</span>
-    <span class="text-3xl font-extrabold tabular-nums tracking-tight text-blue-600 dark:text-blue-400">${estado.radio}</span>
-    <span class="font-semibold">km</span>`;
+    <span class="text-3xl font-extrabold tabular-nums tracking-tight text-blue-600 dark:text-blue-400">${viaje ? Math.round(kmTramo()) : estado.radio}</span>
+    <span class="font-semibold">km${viaje ? ' de ruta' : ''}</span>`;
 
   $('#resumen').innerHTML = `
     <div class="col-span-3 flex items-center gap-3 rounded-3xl bg-gradient-to-br from-blue-600 to-sky-500 p-4 text-white shadow-xl shadow-blue-600/25 sm:col-span-1 sm:block">
       <div class="min-w-0 flex-1">
         <p class="text-xs font-bold uppercase tracking-wider text-blue-100">Más barata</p>
-        <p class="truncate text-base font-semibold">${esc(titulo(masBarata.n) || 'Gasolinera')} · ${km(masBarata.km)}</p>
+        <p class="truncate text-base font-semibold">${esc(titulo(masBarata.n) || 'Gasolinera')} · ${viaje ? 'en ' : ''}${km(masBarata.km)}</p>
       </div>
       <p class="text-4xl font-extrabold tabular-nums tracking-tight">${euro(min)}<span class="text-base font-bold">€</span></p>
     </div>
@@ -351,7 +395,7 @@ function render() {
       <div class="rounded-3xl bg-card p-4 shadow-sm ring-1 ring-line">
         <p class="text-xs font-bold uppercase tracking-wider text-muted">Ahorro en ${LITROS_DEPOSITO} L</p>
         <p class="mt-1 text-3xl font-extrabold tabular-nums text-blue-600 dark:text-blue-400">${euro2(ahorro)}</p>
-        <p class="text-xs text-subtle">vs. la media de la zona</p>
+        <p class="text-xs text-subtle">vs. la media de la ${viaje ? 'ruta' : 'zona'}</p>
       </div>
     </div>`;
 
@@ -378,8 +422,9 @@ function render() {
               <p class="mt-0.5 line-clamp-2 text-base leading-snug text-muted">${esc(direccion(e))}</p>
               <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
                 <span class="inline-flex items-center gap-1 text-xl font-extrabold tabular-nums text-blue-600 dark:text-blue-400">
-                  <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>${km(e.km)}
+                  <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>${viaje ? 'en ' : ''}${km(e.km)}
                 </span>
+                ${viaje ? `<span class="rounded-md bg-field px-1.5 py-0.5 font-semibold ring-1 ring-line" title="Distancia desde la carretera">desvío ${km(e.dv)}</span>` : ''}
                 ${badgeAbierta(e.abierta)}
                 <span class="truncate" title="${esc(e.h)}">${esc(e.h)}</span>
               </div>
@@ -430,9 +475,9 @@ function panelSinUbicacion() {
   );
 }
 
-function esqueleto() {
+function esqueleto(texto = 'Buscando las gasolineras más baratas cerca de ti…') {
   const fila = `<div class="h-28 animate-pulse rounded-3xl bg-card ring-1 ring-line"></div>`;
-  return `<div class="space-y-2.5"><p class="px-1 text-base text-muted">Buscando las gasolineras más baratas cerca de ti…</p>${fila.repeat(4)}</div>`;
+  return `<div class="space-y-2.5"><p class="px-1 text-base text-muted">${texto}</p>${fila.repeat(4)}</div>`;
 }
 
 // ---------- Mapa (Leaflet, carga perezosa) ----------
@@ -447,7 +492,7 @@ let iniciando = null;
 function iniciarMapa() {
   iniciando ??= (async () => {
     L = (await import('leaflet')).default;
-    const { lat, lon } = estado.pos;
+    const [lat, lon] = estado.pos ? [estado.pos.lat, estado.pos.lon] : rutaElegida()?.coords[0] || [40.4, -3.7];
     mapa = L.map('mapa', { zoomControl: false }).setView([lat, lon], 13);
     L.control.zoom({ position: 'bottomright' }).addTo(mapa);
     L.tileLayer(TESELAS, {
@@ -455,9 +500,33 @@ function iniciarMapa() {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(mapa);
     capaMarcadores = L.layerGroup().addTo(mapa);
+    // Muy alejado (ruta entera) las etiquetas de precio se amontonan: se pintan como puntos
+    const ajustarZoom = () => mapa.getContainer().classList.toggle('mapa-lejos', mapa.getZoom() < 11);
+    mapa.on('zoomend', ajustarZoom);
+    ajustarZoom();
+    // Si el usuario mueve el mapa durante el viaje, dejamos de seguirle hasta que pulse «Centrar»
+    mapa.on('dragstart', () => {
+      if (estado.siguiendo && estado.centrar) {
+        estado.centrar = false;
+        $('#btn-centrar').classList.replace('hidden', 'flex');
+      }
+    });
   })();
   return iniciando;
 }
+
+const puntoAzul = (clase = '') =>
+  L.divIcon({
+    className: '',
+    iconSize: [20, 20],
+    html: `<div class="h-5 w-5 rounded-full border-2 border-white bg-blue-600 shadow-lg ring-4 ring-blue-500/30 ${clase}"></div>`,
+  });
+const banderita = (texto, clase) =>
+  L.divIcon({
+    className: 'pin-precio pin-top',
+    html: `<div class="rounded-lg px-2 py-1 text-xs font-extrabold text-white shadow-lg ring-2 ring-white ${clase}">${texto}</div>`,
+  });
+let marcadorYo = null;
 
 async function renderMapa(lista, min, max) {
   await iniciarMapa();
@@ -465,32 +534,44 @@ async function renderMapa(lista, min, max) {
   mapa.invalidateSize();
   capaMarcadores.clearLayers();
   marcadores.clear();
+  marcadorYo = null;
 
-  const { lat, lon } = estado.pos;
-  const centro = L.latLng(lat, lon);
-  L.circle(centro, { radius: estado.radio * 1000, color: '#3b82f6', weight: 1.5, fillOpacity: 0.06 }).addTo(capaMarcadores);
-  L.marker(centro, {
-    icon: L.divIcon({
-      className: '',
-      iconSize: [20, 20],
-      html: '<div class="h-5 w-5 rounded-full bg-blue-600 shadow-lg ring-4 ring-blue-500/30 border-2 border-white"></div>',
-    }),
-    zIndexOffset: 1000,
-  }).addTo(capaMarcadores);
+  const viaje = estado.modo === 'viaje';
+  const ruta = viaje && rutaElegida();
+  let encuadre;
+  if (ruta) {
+    const v = estado.viaje;
+    L.polyline(ruta.coords, { color: '#1d4ed8', weight: 9, opacity: 0.25 }).addTo(capaMarcadores);
+    const linea = L.polyline(ruta.coords, { color: '#2563eb', weight: 5, opacity: 0.9 }).addTo(capaMarcadores);
+    L.marker(ruta.coords[0], { icon: banderita(esc(nombreCorto(v.origen)), 'bg-emerald-600'), zIndexOffset: 900 }).addTo(capaMarcadores);
+    L.marker(ruta.coords.at(-1), { icon: banderita(esc(nombreCorto(v.destino)), 'bg-rose-600'), zIndexOffset: 900 }).addTo(capaMarcadores);
+    if (estado.gps) {
+      marcadorYo = L.marker([estado.gps.lat, estado.gps.lon], { icon: puntoAzul('animate-pulse'), zIndexOffset: 1000 }).addTo(capaMarcadores);
+    }
+    encuadre = linea.getBounds();
+  } else {
+    const { lat, lon } = estado.pos;
+    const centro = L.latLng(lat, lon);
+    L.circle(centro, { radius: estado.radio * 1000, color: '#3b82f6', weight: 1.5, fillOpacity: 0.06 }).addTo(capaMarcadores);
+    L.marker(centro, { icon: puntoAzul(), zIndexOffset: 1000 }).addTo(capaMarcadores);
+    encuadre = centro.toBounds(estado.radio * 2000);
+  }
 
   const c = estado.combustible;
+  // Las 5 más baratas conservan la etiqueta aunque el mapa esté alejado
+  const top = new Set([...lista].sort((a, b) => a.pr[c] - b.pr[c]).slice(0, 5).map((e) => e.id));
   // Pintamos primero las caras para que las baratas queden encima
   [...lista].sort((a, b) => b.pr[c] - a.pr[c]).forEach((e) => {
     const col = colorPrecio(e.pr[c], min, max);
     const icono = L.divIcon({
-      className: 'pin-precio',
+      className: top.has(e.id) ? 'pin-precio pin-top' : 'pin-precio',
       html: `<div class="rounded-lg px-1.5 py-0.5 text-[11px] font-extrabold tabular-nums shadow-lg ring-1 ring-black/20 ${col.pill}">${euro(e.pr[c])}</div>`,
     });
-    const m = L.marker([e.lat, e.lon], { icon: icono })
+    const m = L.marker([e.lat, e.lon], { icon: icono, zIndexOffset: top.has(e.id) ? 500 : 0 })
       .bindPopup(
         `<p class="font-bold">${esc(titulo(e.n))}</p>
          <p class="text-sm text-muted">${esc(direccion(e))}</p>
-         <p class="mt-1 text-lg font-extrabold ${col.txt}">${euro(e.pr[c])} €/L <span class="text-xs font-normal text-muted">· ${km(e.km)}</span></p>
+         <p class="mt-1 text-lg font-extrabold ${col.txt}">${euro(e.pr[c])} €/L <span class="text-xs font-normal text-muted">· ${viaje ? 'en ' : ''}${km(e.km)}${viaje ? ` · desvío ${km(e.dv)}` : ''}</span></p>
          <div class="mt-1 flex gap-3 text-xs font-bold text-blue-600 dark:text-blue-400">
            <button type="button" data-ficha="${esc(e.id)}" class="hover:underline">Ver detalles</button>
            <a href="${urlRuta(e)}" target="_blank" rel="noopener" class="hover:underline">Cómo llegar →</a>
@@ -508,8 +589,21 @@ async function renderMapa(lista, min, max) {
     foco.openPopup();
     return;
   }
-  // Encuadre del círculo del radio (sin depender de que el círculo esté ya proyectado)
-  mapa.fitBounds(centro.toBounds(estado.radio * 2000), { padding: [10, 10] });
+  // En marcha: el mapa sigue al usuario. Si no, encuadre de la ruta o del círculo del radio
+  if (ruta && estado.siguiendo && estado.gps && estado.centrar) {
+    mapa.setView([estado.gps.lat, estado.gps.lon], Math.max(mapa.getZoom(), 12));
+  } else {
+    mapa.fitBounds(encuadre, { padding: [16, 16] });
+  }
+}
+
+// Actualización ligera con cada posición del GPS (sin repintar todos los marcadores)
+function moverYo() {
+  if (!mapa || !estado.gps || estado.vista !== 'mapa') return;
+  const ll = [estado.gps.lat, estado.gps.lon];
+  if (marcadorYo) marcadorYo.setLatLng(ll);
+  else marcadorYo = L.marker(ll, { icon: puntoAzul('animate-pulse'), zIndexOffset: 1000 }).addTo(capaMarcadores);
+  if (estado.centrar) mapa.panTo(ll, { animate: true });
 }
 
 // ---------- Ficha ampliada de una gasolinera ----------
@@ -545,6 +639,7 @@ function tramosHorario(h) {
 function htmlFicha(e) {
   const c = estado.combustible;
   const { lista, min, max } = ultimo;
+  const enViaje = estado.modo === 'viaje';
   const p = e.pr[c];
   const col = colorPrecio(p, min, max);
   const puesto = lista.filter((x) => x.pr[c] < p - 0.0005).length + 1;
@@ -586,7 +681,8 @@ function htmlFicha(e) {
         <div class="min-w-0 flex-1">
           <h2 id="ficha-nombre" class="text-2xl font-extrabold leading-tight">${esc(nombre)}</h2>
           <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span class="inline-flex items-center gap-1 font-bold text-blue-600 dark:text-blue-400">${svg('pin', 'h-4 w-4')}a ${km(e.km)}</span>
+            <span class="inline-flex items-center gap-1 font-bold text-blue-600 dark:text-blue-400">${svg('pin', 'h-4 w-4')}${enViaje ? `en ${km(e.km)} por la ruta` : `a ${km(e.km)}`}</span>
+            ${enViaje ? `<span class="font-semibold text-muted">desvío ${km(e.dv)}</span>` : ''}
             ${badgeAbierta(e.abierta)}
           </div>
         </div>
@@ -600,7 +696,7 @@ function htmlFicha(e) {
         <div class="mt-1 flex items-end justify-between gap-3">
           <p class="text-5xl font-extrabold tabular-nums tracking-tight ${col.txt}">${euro(p)}<span class="text-lg">€/L</span></p>
           <p class="pb-1 text-right text-sm text-muted">
-            <b class="text-fg">${puesto}.ª</b> más barata<br />de ${lista.length} en ${estado.radio} km
+            <b class="text-fg">${puesto}.ª</b> más barata<br />de ${lista.length} ${enViaje ? 'en la ruta' : `en ${estado.radio} km`}
           </p>
         </div>
         <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -738,6 +834,390 @@ document.addEventListener(
   true,
 );
 
+// ---------- Viaje: planificar ruta y gasolineras por el camino ----------
+// Origen y destino → rutas alternativas (OSRM) → se elige una → lista y mapa con las gasolineras
+// a menos de «desvío» km de la carretera. Con «Iniciar viaje» se sigue la posición (GPS) y se
+// muestran solo las que quedan por delante.
+let preparada = null; // { ruta, prep } para no recalcular la rejilla en cada posición
+let watchId = null;
+let wakeLock = null;
+
+function rutaElegida() {
+  const v = estado.viaje;
+  return v && v.elegida != null ? v.rutas[v.elegida] || null : null;
+}
+function rutaPreparada() {
+  const r = rutaElegida();
+  if (!r) return null;
+  if (preparada?.ruta !== r) preparada = { ruta: r, prep: prepararRuta(r.coords) };
+  return preparada.prep;
+}
+const kmActual = () => (estado.siguiendo && estado.gps?.km != null ? estado.gps.km : 0);
+function kmTramo() {
+  const r = rutaElegida();
+  if (!r) return 0;
+  const resto = Math.max(0, (rutaPreparada()?.total ?? r.km) - kmActual());
+  return estado.tramo ? Math.min(estado.tramo, resto) : resto;
+}
+// Gasolineras de la ruta elegida que quedan por delante (km = distancia por carretera)
+function enRuta() {
+  const r = rutaElegida();
+  if (!r) return [];
+  const base = kmActual();
+  const hasta = estado.tramo ? base + estado.tramo : Infinity;
+  const ahora = new Date();
+  const c = estado.combustible;
+  return r.estaciones
+    .filter((e) => e.pr[c] && e.a >= base - 0.3 && e.a <= hasta)
+    .map((e) => ({ ...e, km: Math.max(0, e.a - base), abierta: estaAbierta(e.h, ahora) }));
+}
+
+const nombreCorto = (lugar) => String(lugar?.etiqueta || '').split(',')[0].trim() || '—';
+const duracion = (min) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}`);
+function guardarViaje() {
+  try {
+    if (estado.viaje) localStorage.setItem(CLAVE_VIAJE, JSON.stringify(estado.viaje));
+    else localStorage.removeItem(CLAVE_VIAJE);
+  } catch {}
+}
+
+// Resumen de una ruta con el combustible y filtros actuales
+function datosRuta(r) {
+  const c = estado.combustible;
+  const ahora = new Date();
+  const est = r.estaciones.filter((e) => e.pr[c] && (!estado.soloAbiertas || estaAbierta(e.h, ahora) !== false));
+  if (!est.length) return { n: 0 };
+  const precios = est.map((e) => e.pr[c]);
+  return { n: est.length, min: Math.min(...precios), media: precios.reduce((a, b) => a + b, 0) / precios.length };
+}
+
+function renderViaje() {
+  const enViaje = estado.modo === 'viaje';
+  $('#panel-viaje').classList.toggle('hidden', !enViaje);
+  if (!enViaje) return;
+  const v = estado.viaje;
+  const elegida = rutaElegida();
+  const planificando = !elegida || estado.planificando;
+
+  $('#form-viaje').classList.toggle('hidden', !planificando);
+  $('#desvio').value = String(estado.desvio);
+  $('#btn-buscar-rutas').disabled = estado.viajeCargando;
+  const err = $('#error-viaje');
+  err.textContent = estado.viajeError || '';
+  err.classList.toggle('hidden', !estado.viajeError);
+
+  // Opciones de ruta
+  if (planificando && v?.rutas?.length && !estado.viajeCargando) {
+    const datos = v.rutas.map(datosRuta);
+    const mejorPrecio = Math.min(...datos.map((d) => d.min ?? Infinity));
+    $('#rutas').innerHTML = `
+      <p class="px-1 text-sm font-semibold text-muted">
+        ${v.rutas.length === 1 ? 'Ruta encontrada' : `${v.rutas.length} rutas`} de <b class="text-fg">${esc(nombreCorto(v.origen))}</b> a <b class="text-fg">${esc(nombreCorto(v.destino))}</b> · elige una
+      </p>
+      ${v.rutas
+        .map((r, i) => {
+          const d = datos[i];
+          const sel = i === v.elegida;
+          const etiquetas = [
+            i === 0 ? '<span class="rounded-full bg-blue-600/10 px-2 py-0.5 text-blue-700 dark:bg-blue-400/15 dark:text-blue-300">Más rápida</span>' : '',
+            v.rutas.length > 1 && d.min === mejorPrecio ? '<span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-700 dark:text-emerald-300">Más barata</span>' : '',
+          ].join('');
+          return `<button type="button" data-ruta="${i}" class="aparecer block w-full rounded-3xl bg-card p-4 text-left shadow-sm ring-1 transition hover:ring-blue-400/60 active:scale-[0.99] ${sel ? 'ring-2 ring-blue-500' : 'ring-line'}" style="animation-delay:${i * 40}ms">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex flex-wrap gap-1.5 text-xs font-bold uppercase tracking-wide">${etiquetas}</div>
+                <p class="mt-1 text-lg font-bold leading-snug">${esc(r.resumen)}</p>
+                <p class="text-base text-muted"><b class="text-fg">${r.km.toLocaleString('es-ES', { maximumFractionDigits: 0 })} km</b> · ${duracion(r.min)}</p>
+              </div>
+              <div class="shrink-0 text-right">
+                ${d.n ? `<p class="text-xs text-muted">desde</p><p class="text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">${euro(d.min)}<span class="text-sm">€</span></p>` : ''}
+              </div>
+            </div>
+            <div class="mt-2 flex items-center justify-between gap-2 text-sm">
+              <span class="font-semibold text-muted">${d.n} ${d.n === 1 ? 'gasolinera' : 'gasolineras'}${estado.soloAbiertas ? ' abiertas' : ''} a menos de ${v.desvio} km</span>
+              <span class="inline-flex items-center gap-0.5 font-bold text-blue-600 dark:text-blue-400">${sel ? 'Elegida' : 'Elegir'}<svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
+            </div>
+          </button>`;
+        })
+        .join('')}`;
+  } else {
+    $('#rutas').innerHTML = '';
+  }
+
+  // Barra del viaje elegido (y seguimiento en marcha)
+  if (planificando) {
+    $('#barra-viaje').innerHTML = '';
+    return;
+  }
+  const total = rutaPreparada()?.total ?? elegida.km;
+  const llevas = Math.min(kmActual(), total);
+  const g = estado.gps;
+  let lineaGps = '';
+  if (estado.siguiendo) {
+    if (!g) lineaGps = 'Esperando la señal GPS…';
+    else if (g.desvio != null && g.desvio > Math.max(1, estado.viaje.desvio))
+      lineaGps = `Estás a ${km(g.desvio)} de la ruta. Si has cambiado de camino, planifica de nuevo.`;
+  }
+  $('#barra-viaje').innerHTML = `
+    <div class="rounded-3xl bg-gradient-to-br from-blue-600 to-sky-500 p-4 text-white shadow-xl shadow-blue-600/25">
+      <div class="flex items-start gap-3">
+        <div class="min-w-0 flex-1">
+          <p class="text-xs font-bold uppercase tracking-wider text-blue-100">${estado.siguiendo ? 'En marcha' : 'Tu viaje'}</p>
+          <p class="text-xl font-extrabold leading-tight">${esc(nombreCorto(v.origen))} → ${esc(nombreCorto(v.destino))}</p>
+          <p class="text-sm text-blue-50">${esc(elegida.resumen)} · ${Math.round(elegida.km)} km · ${duracion(elegida.min)}</p>
+        </div>
+        <button type="button" data-accion-viaje="cambiar" class="shrink-0 rounded-xl bg-white/15 px-3 py-2 text-sm font-bold ring-1 ring-white/30 hover:bg-white/25">Cambiar</button>
+      </div>
+      ${estado.siguiendo ? `
+        <div class="mt-3">
+          <div class="h-2 overflow-hidden rounded-full bg-white/25"><div class="h-full rounded-full bg-white transition-all" style="width:${total ? (llevas / total) * 100 : 0}%"></div></div>
+          <p class="mt-1.5 flex justify-between text-sm font-semibold"><span>Llevas ${km(llevas)}</span><span>Quedan ${km(Math.max(0, total - llevas))}</span></p>
+          ${lineaGps ? `<p class="mt-1 rounded-xl bg-white/15 px-3 py-2 text-sm">${lineaGps}</p>` : ''}
+        </div>` : ''}
+      <button type="button" data-accion-viaje="${estado.siguiendo ? 'detener' : 'iniciar'}"
+        class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-lg font-bold shadow transition active:scale-[0.99] ${estado.siguiendo ? 'bg-white/15 ring-1 ring-white/40 hover:bg-white/25' : 'bg-white text-blue-700 hover:bg-blue-50'}">
+        ${estado.siguiendo
+          ? '<svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Detener seguimiento'
+          : '<svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 19-9-9 19-2-8-8-2z"/></svg>Iniciar viaje'}
+      </button>
+      <p class="mt-2 text-center text-xs text-blue-100">${estado.siguiendo
+        ? 'Se muestran las gasolineras que tienes por delante. La pantalla se mantiene encendida.'
+        : 'Al iniciar, el mapa te sigue y te enseña las gasolineras que vas a encontrar.'}</p>
+    </div>`;
+}
+
+function ubicacionActual() {
+  return new Promise((ok, mal) => {
+    if (!('geolocation' in navigator)) return mal(new Error('Tu navegador no permite geolocalización; escribe el origen.'));
+    navigator.geolocation.getCurrentPosition(
+      async (p) => {
+        const lugar = { lat: p.coords.latitude, lon: p.coords.longitude, etiqueta: 'Tu ubicación', gps: true };
+        try {
+          const a = await direccionDe(lugar);
+          const nombre = a.city || a.town || a.village || a.municipality;
+          if (nombre) lugar.etiqueta = nombre;
+        } catch {}
+        ok(lugar);
+      },
+      () => mal(new Error('No hemos podido obtener tu ubicación; escribe el origen.')),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 },
+    );
+  });
+}
+
+async function pedirViaje(o, d, desvio) {
+  const q = `o=${o.lat.toFixed(4)},${o.lon.toFixed(4)}&d=${d.lat.toFixed(4)},${d.lon.toFixed(4)}&desvio=${desvio}`;
+  // 1) Nuestra API: calcula rutas y gasolineras en el servidor (~150 KB)
+  let r;
+  try {
+    r = await fetch(`/api/ruta?${q}`);
+  } catch {}
+  if (r?.headers.get('content-type')?.includes('json')) {
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'No se pudo calcular la ruta');
+    return j;
+  }
+  // 2) Plan B sin servidor: rutas desde OSRM y precios directamente del Ministerio (~12 MB)
+  const rm = await fetch(UPSTREAM, { headers: { Accept: 'application/json' } });
+  if (!rm.ok) throw new Error('El servicio del Ministerio no responde');
+  const { fecha, estaciones } = compactar(await rm.json());
+  return { fecha, desvio, rutas: await calcularViaje(o, d, desvio, estaciones) };
+}
+
+async function planificar() {
+  const textoO = $('#viaje-origen').value.trim();
+  const textoD = $('#viaje-destino').value.trim();
+  if (!textoD) return $('#viaje-destino').focus();
+  detenerSeguimiento();
+  estado.viajeCargando = true;
+  estado.viajeError = null;
+  render();
+  try {
+    // Nominatim pide no más de una consulta por segundo: van una detrás de otra
+    const origen = textoO ? await buscarLugar(textoO).catch(() => Promise.reject(new Error(`No encontramos «${textoO}»`))) : await ubicacionActual();
+    const destino = await buscarLugar(textoD).catch(() => Promise.reject(new Error(`No encontramos «${textoD}»`)));
+    const res = await pedirViaje(origen, destino, estado.desvio);
+    if (!res.rutas?.length) throw new Error('No hay ninguna ruta por carretera entre esos dos puntos');
+    estado.viaje = { origen, destino, desvio: res.desvio, fecha: res.fecha, rutas: res.rutas, elegida: res.rutas.length === 1 ? 0 : null };
+    estado.planificando = res.rutas.length > 1;
+    guardarViaje();
+  } catch (e) {
+    estado.viajeError = e.message || 'No se pudo planificar el viaje';
+  } finally {
+    estado.viajeCargando = false;
+    render();
+  }
+}
+
+// Mismo origen y destino con otro desvío o precios nuevos (se mantiene la ruta elegida)
+async function recalcularViaje() {
+  const v = estado.viaje;
+  if (!v) return;
+  estado.viajeCargando = true;
+  estado.viajeError = null;
+  render();
+  try {
+    const res = await pedirViaje(v.origen, v.destino, estado.desvio);
+    const elegida = v.elegida != null && v.elegida < res.rutas.length ? v.elegida : null;
+    estado.viaje = { ...v, desvio: res.desvio, fecha: res.fecha, rutas: res.rutas, elegida };
+    guardarViaje();
+  } catch (e) {
+    estado.viajeError = e.message || 'No se pudo actualizar el viaje';
+  } finally {
+    estado.viajeCargando = false;
+    render();
+  }
+}
+
+function elegirRuta(i) {
+  estado.viaje.elegida = i;
+  estado.planificando = false;
+  guardarViaje();
+  render();
+  $('#barra-viaje').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ----- Seguimiento con GPS -----
+async function mantenerPantalla() {
+  try {
+    wakeLock = await navigator.wakeLock?.request('screen');
+  } catch {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (estado.siguiendo && document.visibilityState === 'visible') mantenerPantalla();
+});
+
+function iniciarSeguimiento() {
+  if (!('geolocation' in navigator)) {
+    estado.viajeError = 'Tu navegador no permite geolocalización.';
+    return render();
+  }
+  estado.siguiendo = true;
+  estado.centrar = true;
+  estado.gps = null;
+  estado.vista = 'mapa';
+  guardarPrefs();
+  watchId = navigator.geolocation.watchPosition(nuevaPosicion, errorPosicion, {
+    enableHighAccuracy: true,
+    maximumAge: 5000,
+    timeout: 30000,
+  });
+  mantenerPantalla();
+  render();
+  requestAnimationFrame(() => $('#mapa-wrap').scrollIntoView({ behavior: 'smooth', block: 'center' }));
+}
+
+function detenerSeguimiento() {
+  if (watchId != null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  wakeLock?.release().catch(() => {});
+  wakeLock = null;
+  if (!estado.siguiendo) return;
+  estado.siguiendo = false;
+  estado.gps = null;
+  $('#btn-centrar').classList.add('hidden');
+  $('#btn-centrar').classList.remove('flex');
+}
+
+function nuevaPosicion(p) {
+  const prep = rutaPreparada();
+  if (!prep) return;
+  const { latitude: lat, longitude: lon, accuracy } = p.coords;
+  const previo = estado.gps;
+  // Partiendo del último punto kilométrico conocido evitamos «saltar» a tramos anteriores de la ruta
+  const pr = proyectar(prep, lat, lon, { desdeKm: previo?.km != null ? previo.km - 5 : -Infinity });
+  estado.gps = {
+    lat,
+    lon,
+    precision: accuracy,
+    km: pr && pr.desvio < 5 ? pr.km : previo?.km ?? 0,
+    desvio: pr?.desvio ?? null,
+    kmPintado: previo?.kmPintado,
+  };
+  // Repintamos lista y marcadores cada 0,5 km de avance; entre medias solo se mueve el punto azul
+  if (!previo || Math.abs(estado.gps.km - (previo.kmPintado ?? -99)) >= 0.5) {
+    estado.gps.kmPintado = estado.gps.km;
+    render();
+  } else {
+    renderViaje();
+    moverYo();
+  }
+}
+
+function errorPosicion(err) {
+  if (err.code === 1) {
+    detenerSeguimiento();
+    estado.viajeError = 'Has denegado el permiso de ubicación; sin él no podemos seguir tu viaje.';
+    render();
+  }
+  // Sin señal o tiempo agotado: watchPosition sigue intentándolo
+}
+
+// ----- Eventos del viaje -----
+$('#form-viaje').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  planificar();
+});
+$('#btn-intercambiar').addEventListener('click', () => {
+  const o = $('#viaje-origen');
+  const d = $('#viaje-destino');
+  [o.value, d.value] = [d.value, o.value];
+});
+$('#desvio').addEventListener('change', (ev) => {
+  estado.desvio = Number(ev.target.value);
+  guardarPrefs();
+  // Si ya hay rutas calculadas, se recalculan las gasolineras con el nuevo desvío
+  if (estado.viaje && !estado.viajeCargando) recalcularViaje();
+});
+$('#tramo').addEventListener('change', (ev) => {
+  estado.tramo = Number(ev.target.value);
+  guardarPrefs();
+  render();
+});
+$('#rutas').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-ruta]');
+  if (b) elegirRuta(Number(b.dataset.ruta));
+});
+$('#barra-viaje').addEventListener('click', (ev) => {
+  const a = ev.target.closest('[data-accion-viaje]')?.dataset.accionViaje;
+  if (a === 'cambiar') {
+    estado.planificando = true;
+    render();
+    $('#panel-viaje').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  if (a === 'iniciar') iniciarSeguimiento();
+  if (a === 'detener') {
+    detenerSeguimiento();
+    render();
+  }
+});
+$('#btn-centrar').addEventListener('click', () => {
+  estado.centrar = true;
+  $('#btn-centrar').classList.add('hidden');
+  $('#btn-centrar').classList.remove('flex');
+  if (estado.gps && mapa) mapa.setView([estado.gps.lat, estado.gps.lon], Math.max(mapa.getZoom(), 13));
+});
+document.querySelectorAll('.modo').forEach((b) =>
+  b.addEventListener('click', () => {
+    if (estado.modo === b.dataset.modo) return;
+    estado.modo = b.dataset.modo;
+    guardarPrefs();
+    if (estado.modo === 'cerca') {
+      detenerSeguimiento();
+      if (estado.pos) cargar();
+      else pedirUbicacion();
+    } else {
+      render();
+      if (!estado.viaje) $('#viaje-destino').focus();
+    }
+  }),
+);
+// Al volver a abrir la app con un viaje guardado, rellenamos el formulario
+if (estado.viaje) {
+  if (!estado.viaje.origen.gps) $('#viaje-origen').value = estado.viaje.origen.etiqueta;
+  $('#viaje-destino').value = estado.viaje.destino.etiqueta;
+}
+
 // ---------- Eventos ----------
 $('#combustibles').addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-c]');
@@ -774,7 +1254,10 @@ document.querySelectorAll('.vista').forEach((b) =>
     render();
   }),
 );
-$('#btn-refrescar').addEventListener('click', () => (estado.pos ? cargar({ forzar: true }) : pedirUbicacion()));
+$('#btn-refrescar').addEventListener('click', () => {
+  if (estado.modo === 'viaje') return estado.viaje ? recalcularViaje() : $('#viaje-destino').focus();
+  estado.pos ? cargar({ forzar: true }) : pedirUbicacion();
+});
 $('#ubicacion').addEventListener('click', pedirUbicacion);
 
 $('#estado').addEventListener('click', (ev) => {
@@ -908,4 +1391,5 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 // Arranque
 aplicarTema();
 render();
-pedirUbicacion();
+// En modo viaje la ubicación se pide solo al planificar o al iniciar el seguimiento
+if (estado.modo === 'cerca') pedirUbicacion();

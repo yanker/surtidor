@@ -4,7 +4,7 @@
 //  - /api/ruta: siempre a la red (el viaje elegido ya se guarda en el navegador)
 //  - Teselas del mapa y demás orígenes: se dejan pasar
 
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE_APP = `surtidor-app-${VERSION}`;
 const CACHE_API = `surtidor-api-${VERSION}`;
 const PRECACHE = ['/', '/manifest.webmanifest', '/icon.svg', '/icons/icon-192.png'];
@@ -28,7 +28,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
 
-  if (url.pathname === '/api/ruta') return;
+  if (url.pathname === '/api/ruta' || url.pathname.startsWith('/.well-known/')) return;
   if (url.pathname.startsWith('/api/')) {
     e.respondWith(
       fetch(req)
@@ -46,14 +46,18 @@ self.addEventListener('fetch', (e) => {
   }
 
   if (req.mode === 'navigate') {
+    // Cada página se guarda con su ruta (/, /privacidad); sin red, la guardada o la portada
+    const clave = url.pathname;
     e.respondWith(
       fetch(req)
         .then((res) => {
-          const copia = res.clone();
-          caches.open(CACHE_APP).then((c) => c.put('/', copia));
+          if (res.ok) {
+            const copia = res.clone();
+            caches.open(CACHE_APP).then((c) => c.put(clave, copia));
+          }
           return res;
         })
-        .catch(() => caches.match('/')),
+        .catch(() => caches.match(clave).then((r) => r || caches.match('/'))),
     );
     return;
   }

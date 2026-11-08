@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Privacidad · Surtidor</title>
+    <meta name="description" content="Política de privacidad de Surtidor: sin cookies, sin seguimiento y sin recogida de datos personales." />
+    <link rel="canonical" href="https://surtidor.vercel.app/privacidad" />
+    <meta name="theme-color" content="#eef3fb" />
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('surtidor:tema'); } catch (e) {}
+        var oscuro = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.classList.toggle('dark', oscuro);
+        document.querySelector('meta[name=theme-color]').content = oscuro ? '#030a1a' : '#eef3fb';
+      })();
+    </script>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <script type="module" src="/src/privacidad.js"></script>
+  </head>
+  <body class="min-h-dvh bg-bg text-fg antialiased">
+    <main class="mx-auto max-w-2xl px-4 pb-16 pt-[max(1.5rem,env(safe-area-inset-top))]">
+      <a href="/" class="inline-flex items-center gap-1.5 rounded-xl bg-card px-3 py-2 text-sm font-semibold ring-1 ring-line hover:text-blue-600">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        Volver a Surtidor
+      </a>
+
+      <h1 class="mt-6 text-3xl font-extrabold tracking-tight">Política de privacidad</h1>
+      <p class="mt-1 text-sm text-muted">Última actualización: 8 de noviembre de 2026</p>
+
+      <div class="mt-6 rounded-3xl bg-blue-600/10 p-4 text-base font-semibold text-blue-800 ring-1 ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-200 dark:ring-blue-400/20">
+        En resumen: Surtidor no usa cookies, no tiene cuentas de usuario, no incluye publicidad ni analítica y no guarda tus datos en ningún servidor.
+      </div>
+
+      <div class="prosa mt-8 space-y-8 text-base leading-relaxed">
+        <section>
+          <h2>Quién es el responsable</h2>
+          <p>Surtidor es un proyecto personal de código abierto publicado en <a href="https://github.com/yanker/surtidor">github.com/yanker/surtidor</a>. Esta política se aplica a la web <a href="https://surtidor.vercel.app/">surtidor.vercel.app</a> y a la app de Android, que muestra esa misma web.</p>
+        </section>
+
+        <section>
+          <h2>Ubicación</h2>
+          <p>La app pide permiso para usar tu ubicación con dos fines:</p>
+          <ul>
+            <li><b>Cerca de mí:</b> buscar las gasolineras de tu alrededor. Se envían al servidor de Surtidor unas coordenadas redondeadas (unos 100 m de precisión) solo para obtener la lista de gasolineras; no se guardan ni se asocian a ninguna persona.</li>
+            <li><b>Viaje:</b> calcular la ruta desde tu posición y, si pulsas «Iniciar viaje», seguir tu avance por la ruta. El seguimiento se hace únicamente en tu dispositivo y solo mientras la app está abierta en pantalla; tu posición no se envía a ningún sitio durante el viaje.</li>
+          </ul>
+          <p>Puedes negar el permiso y buscar por localidad o código postal. También puedes retirarlo en cualquier momento desde los ajustes del navegador o del teléfono.</p>
+        </section>
+
+        <section>
+          <h2>Datos guardados en tu dispositivo</h2>
+          <p>Para recordar tus preferencias se usa el almacenamiento local del navegador (<code>localStorage</code>), que nunca sale de tu dispositivo:</p>
+          <ul>
+            <li>Tema claro u oscuro, combustible, radio, orden y filtros elegidos.</li>
+            <li>El último viaje planificado (origen, destino y gasolineras de la ruta), para recuperarlo si cierras la app.</li>
+            <li>Si has descartado el aviso para instalar la app.</li>
+          </ul>
+          <p>Además, la app guarda una copia de sí misma y de la última consulta de precios para funcionar sin conexión. Puedes borrarlo todo borrando los datos del sitio o desinstalando la app.</p>
+        </section>
+
+        <section>
+          <h2>Servicios de terceros</h2>
+          <p>Para funcionar, la app se comunica con estos servicios, que reciben la petición correspondiente (y, como cualquier servidor web, tu dirección IP):</p>
+          <ul>
+            <li><b>Vercel</b>, que aloja la web y el servidor de Surtidor.</li>
+            <li><b>Ministerio para la Transición Ecológica</b>, fuente oficial de los precios.</li>
+            <li><b>OpenStreetMap</b>, para las imágenes del mapa.</li>
+            <li><b>Nominatim</b> (OpenStreetMap), para buscar localidades y obtener el nombre de tu zona a partir de tus coordenadas.</li>
+            <li><b>OSRM</b>, para calcular las rutas del planificador de viajes, a partir del origen y el destino.</li>
+          </ul>
+          <p>Al pulsar «Cómo llegar», «Waze» o «Apple», se abre la app o la web correspondiente con las coordenadas de la gasolinera; a partir de ahí se aplica la política de privacidad de ese servicio.</p>
+        </section>
+
+        <section>
+          <h2>Lo que Surtidor no hace</h2>
+          <ul>
+            <li>No usa cookies.</li>
+            <li>No incluye publicidad, analítica ni herramientas de seguimiento.</li>
+            <li>No pide registro, nombre, correo ni ningún otro dato personal.</li>
+            <li>No vende ni comparte datos con nadie.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Menores</h2>
+          <p>La app no está dirigida específicamente a menores y no recoge datos personales de nadie.</p>
+        </section>
+
+        <section>
+          <h2>Cambios y contacto</h2>
+          <p>Si esta política cambia, se actualizará en esta misma página con su fecha. Para cualquier duda o petición puedes abrir una consulta en <a href="https://github.com/yanker/surtidor/issues">github.com/yanker/surtidor/issues</a>.</p>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

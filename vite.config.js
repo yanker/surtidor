@@ -17,4 +17,8 @@ const apiLocal = () => ({ name: 'api-local', configureServer: montar, configureP
 
 export default defineConfig({
   plugins: [tailwindcss(), apiLocal()],
+  build: {
+    // Dos páginas: la app y la política de privacidad (/privacidad)
+    rollupOptions: { input: { main: 'index.html', privacidad: 'privacidad.html' } },
+  },
 });

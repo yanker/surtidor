@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.vercel.surtidor",
+      "sha256_cert_fingerprints": [
+        "PENDIENTE:HUELLA_SHA256_DE_LA_CLAVE_DE_SUBIDA",
+        "PENDIENTE:HUELLA_SHA256_DE_LA_CLAVE_DE_FIRMA_DE_GOOGLE_PLAY"
+      ]
+    }
+  }
+]

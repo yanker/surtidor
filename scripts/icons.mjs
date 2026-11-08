@@ -115,4 +115,34 @@ await writeFile('index.html', nuevo);
     .toFile('public/og-image.png');
 }
 
-console.log(`Iconos, ${links.length} pantallas de inicio e imagen para compartir generadas`);
+// ---------- Google Play (app de Android, TWA): icono 512x512 e imagen destacada 1024x500 ----------
+{
+  await mkdir('android/play', { recursive: true });
+  await sharp('public/icons/maskable-512.png').png().toFile('android/play/icono-512.png');
+  const W = 1024;
+  const H = 500;
+  const icono = await sharp(svgSplash, { density: 600 }).resize(220, 220).png().toBuffer();
+  const capa = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+    <defs>
+      <linearGradient id="f" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#0b1730"/><stop offset="1" stop-color="#1e3a8a"/>
+      </linearGradient>
+      <radialGradient id="b" cx="0.85" cy="0.1" r="0.6">
+        <stop offset="0" stop-color="#38bdf8" stop-opacity="0.35"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <rect width="${W}" height="${H}" fill="url(#f)"/>
+    <rect width="${W}" height="${H}" fill="url(#b)"/>
+    <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
+      <text x="350" y="210" font-size="92" font-weight="800" fill="#ffffff">Surtidor</text>
+      <text x="354" y="270" font-size="34" font-weight="600" fill="#bfdbfe">Gasolineras baratas cerca de ti</text>
+      <text x="354" y="318" font-size="26" font-weight="500" fill="#93c5fd">y en tu ruta · Precios oficiales · Sin anuncios</text>
+    </g>
+  </svg>`);
+  await sharp(capa)
+    .composite([{ input: icono, left: 90, top: Math.round((H - 220) / 2) }])
+    .png({ compressionLevel: 9 })
+    .toFile('android/play/imagen-destacada.png');
+}
+
+console.log(`Iconos, ${links.length} pantallas de inicio, imagen para compartir y recursos de Google Play generados`);

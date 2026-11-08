@@ -210,6 +210,12 @@
       </div>
     </div>
 
+    <!-- Ficha ampliada de una gasolinera (hoja inferior en móvil, ventana centrada en escritorio) -->
+    <dialog id="ficha" aria-labelledby="ficha-nombre"
+      class="ficha m-0 mt-auto max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-3xl bg-card text-fg shadow-2xl ring-1 ring-line backdrop:bg-slate-950/55 backdrop:backdrop-blur-sm sm:m-auto sm:max-w-lg sm:rounded-3xl">
+      <div id="ficha-contenido" class="max-h-[92dvh] overflow-y-auto overscroll-contain"></div>
+    </dialog>
+
     <!-- Volver arriba -->
     <button id="btn-arriba" aria-label="Volver arriba" title="Volver arriba"
       class="pointer-events-none fixed right-4 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-[1000] grid h-14 w-14 translate-y-4 place-items-center rounded-full bg-blue-600 text-white opacity-0 shadow-xl shadow-blue-600/40 ring-4 ring-bg transition duration-300 hover:bg-blue-500 active:scale-95">

@@ -40,6 +40,9 @@ const estado = {
   datos: null, // { fecha, estaciones, radio, lat, lon }
   cargando: false,
 };
+let ultimo = null; // { lista, min, max, media } de lo último pintado (para la ficha)
+let enfocar = null; // id de gasolinera a centrar en el mapa
+const marcadores = new Map(); // id → marcador de Leaflet
 
 // Accesos directos del icono (manifest "shortcuts"): /?combustible=diesel
 {
@@ -323,6 +326,7 @@ function render() {
   const media = precios.reduce((a, b) => a + b, 0) / precios.length;
   const masBarata = lista.find((e) => e.pr[c] === min);
   const ahorro = (media - min) * LITROS_DEPOSITO;
+  ultimo = { lista, min, max, media };
 
   $('#contador').innerHTML = `
     <span class="text-3xl font-extrabold tabular-nums tracking-tight text-fg">${lista.length}</span>
@@ -362,7 +366,8 @@ function render() {
         .join('');
       return `
       <li class="aparecer" style="animation-delay:${Math.min(i, 12) * 25}ms">
-        <article class="relative overflow-hidden rounded-3xl bg-card p-4 shadow-sm ring-1 ring-line transition hover:ring-blue-400/60">
+        <article data-ficha="${esc(e.id)}" tabindex="0" role="button" aria-label="Ver detalles de ${esc(titulo(e.n) || 'la gasolinera')}"
+          class="tarjeta relative overflow-hidden rounded-3xl bg-card p-4 shadow-sm ring-1 ring-line transition hover:ring-blue-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 active:scale-[0.99]">
           <span class="absolute inset-y-0 left-0 w-1 ${col.bg}"></span>
           <div class="flex items-start gap-3">
             <div class="min-w-0 flex-1">
@@ -370,7 +375,7 @@ function render() {
                 ${i === 0 && estado.orden === 'precio' ? '<span class="rounded-full bg-blue-600/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-blue-600 dark:bg-blue-400/15 dark:text-blue-300">Top</span>' : ''}
                 <h2 class="truncate text-lg font-bold">${esc(titulo(e.n) || 'Gasolinera')}</h2>
               </div>
-              <p class="mt-0.5 truncate text-base text-muted">${esc(direccion(e))}</p>
+              <p class="mt-0.5 line-clamp-2 text-base leading-snug text-muted">${esc(direccion(e))}</p>
               <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
                 <span class="inline-flex items-center gap-1 text-xl font-extrabold tabular-nums text-blue-600 dark:text-blue-400">
                   <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>${km(e.km)}
@@ -386,6 +391,9 @@ function render() {
           </div>
           <div class="mt-3 flex items-center justify-between gap-2">
             <div class="flex min-w-0 flex-wrap gap-1.5 text-xs">${otros}</div>
+            <span class="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded-xl px-2 py-2.5 text-sm font-semibold text-blue-600 dark:text-blue-400">
+              Detalles<svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+            </span>
             <a href="${urlRuta(e)}" target="_blank" rel="noopener" class="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-base font-bold text-white shadow transition hover:bg-blue-500">
               <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 19-9-9 19-2-8-8-2z"/></svg>Ir
             </a>
@@ -456,6 +464,7 @@ async function renderMapa(lista, min, max) {
   // El contenedor puede haber cambiado de tamaño o estado mientras estaba oculto
   mapa.invalidateSize();
   capaMarcadores.clearLayers();
+  marcadores.clear();
 
   const { lat, lon } = estado.pos;
   const centro = L.latLng(lat, lon);
@@ -477,18 +486,257 @@ async function renderMapa(lista, min, max) {
       className: 'pin-precio',
       html: `<div class="rounded-lg px-1.5 py-0.5 text-[11px] font-extrabold tabular-nums shadow-lg ring-1 ring-black/20 ${col.pill}">${euro(e.pr[c])}</div>`,
     });
-    L.marker([e.lat, e.lon], { icon: icono })
+    const m = L.marker([e.lat, e.lon], { icon: icono })
       .bindPopup(
         `<p class="font-bold">${esc(titulo(e.n))}</p>
          <p class="text-sm text-muted">${esc(direccion(e))}</p>
          <p class="mt-1 text-lg font-extrabold ${col.txt}">${euro(e.pr[c])} €/L <span class="text-xs font-normal text-muted">· ${km(e.km)}</span></p>
-         <a class="mt-1 inline-block text-xs font-bold text-blue-600 dark:text-blue-400" href="${urlRuta(e)}" target="_blank" rel="noopener">Cómo llegar →</a>`,
+         <div class="mt-1 flex gap-3 text-xs font-bold text-blue-600 dark:text-blue-400">
+           <button type="button" data-ficha="${esc(e.id)}" class="hover:underline">Ver detalles</button>
+           <a href="${urlRuta(e)}" target="_blank" rel="noopener" class="hover:underline">Cómo llegar →</a>
+         </div>`,
       )
       .addTo(capaMarcadores);
+    marcadores.set(e.id, m);
   });
+
+  // Venimos de «Ver en el mapa» de la ficha: centramos en esa gasolinera
+  const foco = enfocar && marcadores.get(enfocar);
+  enfocar = null;
+  if (foco) {
+    mapa.setView(foco.getLatLng(), 16);
+    foco.openPopup();
+    return;
+  }
   // Encuadre del círculo del radio (sin depender de que el círculo esté ya proyectado)
   mapa.fitBounds(centro.toBounds(estado.radio * 2000), { padding: [10, 10] });
 }
+
+// ---------- Ficha ampliada de una gasolinera ----------
+const dialogo = $('#ficha');
+const ICONO = {
+  cerrar: '<path d="M18 6 6 18M6 6l12 12"/>',
+  ir: '<path d="m3 11 19-9-9 19-2-8-8-2z"/>',
+  pin: '<path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/>',
+  reloj: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  mapa: '<path d="m9 4-6 2v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/>',
+  compartir: '<path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+  copiar: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+};
+const svg = (nombre, clase = 'h-5 w-5') =>
+  `<svg viewBox="0 0 24 24" class="${clase} shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${ICONO[nombre]}</svg>`;
+
+const urlWaze = (e) => `https://waze.com/ul?ll=${e.lat},${e.lon}&navigate=yes`;
+const urlApple = (e) => `https://maps.apple.com/?daddr=${e.lat},${e.lon}`;
+const urlVer = (e) => `https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lon}`;
+
+// "L-V: 06:00-22:00; S: 08:00-14:00" → [["L-V", "06:00-22:00"], ["S", "08:00-14:00"]]
+function tramosHorario(h) {
+  return String(h || '')
+    .split(';')
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => {
+      const r = t.match(/^([^:]+?):\s*(.+)$/);
+      return r ? [r[1], r[2].replace(/24H/i, 'Abierta 24 horas')] : ['', t];
+    });
+}
+
+function htmlFicha(e) {
+  const c = estado.combustible;
+  const { lista, min, max } = ultimo;
+  const p = e.pr[c];
+  const col = colorPrecio(p, min, max);
+  const puesto = lista.filter((x) => x.pr[c] < p - 0.0005).length + 1;
+  const dif = p - min;
+  const nombre = titulo(e.n) || 'Gasolinera';
+  const linea2 = [e.cp, titulo(e.l), e.p && titulo(e.p) !== titulo(e.l) ? `(${titulo(e.p)})` : '']
+    .filter(Boolean)
+    .join(' ');
+
+  const precios = COMBUSTIBLES.filter((x) => e.pr[x.k])
+    .map((x) => {
+      const sel = x.k === c;
+      return `<li class="flex items-center justify-between gap-2 rounded-2xl px-3 py-2.5 ring-1 ${sel ? 'bg-blue-600 text-white ring-blue-600' : x.suave}">
+        <span class="min-w-0">
+          <span class="block truncate text-sm font-bold">${x.nombre}</span>
+          <span class="block text-xs ${sel ? 'text-blue-100' : 'opacity-75'}">${sel ? 'Seleccionado' : x.sub}</span>
+        </span>
+        <span class="text-lg font-extrabold tabular-nums">${euro(e.pr[x.k])}<span class="text-xs">€</span></span>
+      </li>`;
+    })
+    .join('');
+
+  const horario = tramosHorario(e.h)
+    .map(
+      ([dias, horas]) => `<li class="flex justify-between gap-3 py-1.5">
+        <span class="font-semibold">${esc(dias)}</span><span class="text-right tabular-nums text-muted">${esc(horas)}</span></li>`,
+    )
+    .join('');
+
+  const accion = (href, icono, texto) =>
+    `<a href="${href}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1 rounded-2xl bg-field px-2 py-3 text-sm font-semibold ring-1 ring-line transition hover:text-blue-600 dark:hover:text-blue-400">${svg(icono)}${texto}</a>`;
+  const accionBtn = (id, icono, texto) =>
+    `<button type="button" data-accion-ficha="${id}" class="flex flex-col items-center gap-1 rounded-2xl bg-field px-2 py-3 text-sm font-semibold ring-1 ring-line transition hover:text-blue-600 dark:hover:text-blue-400">${svg(icono)}<span>${texto}</span></button>`;
+
+  return `
+    <div class="sticky top-0 z-10 bg-card/95 px-5 pt-3 pb-3 backdrop-blur">
+      <div class="mx-auto mb-2 h-1.5 w-10 rounded-full bg-line sm:hidden"></div>
+      <div class="flex items-start gap-3">
+        <div class="min-w-0 flex-1">
+          <h2 id="ficha-nombre" class="text-2xl font-extrabold leading-tight">${esc(nombre)}</h2>
+          <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <span class="inline-flex items-center gap-1 font-bold text-blue-600 dark:text-blue-400">${svg('pin', 'h-4 w-4')}a ${km(e.km)}</span>
+            ${badgeAbierta(e.abierta)}
+          </div>
+        </div>
+        <button type="button" data-accion-ficha="cerrar" aria-label="Cerrar" class="-mr-1 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-field text-muted ring-1 ring-line hover:text-fg">${svg('cerrar')}</button>
+      </div>
+    </div>
+
+    <div class="space-y-5 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <section class="rounded-3xl bg-field p-4 ring-1 ring-line">
+        <p class="text-xs font-bold uppercase tracking-wider text-muted">${COMBUSTIBLES.find((x) => x.k === c).nombre}</p>
+        <div class="mt-1 flex items-end justify-between gap-3">
+          <p class="text-5xl font-extrabold tabular-nums tracking-tight ${col.txt}">${euro(p)}<span class="text-lg">€/L</span></p>
+          <p class="pb-1 text-right text-sm text-muted">
+            <b class="text-fg">${puesto}.ª</b> más barata<br />de ${lista.length} en ${estado.radio} km
+          </p>
+        </div>
+        <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
+          <div class="rounded-2xl bg-card px-3 py-2 ring-1 ring-line">
+            <p class="text-xs text-muted">Llenar ${LITROS_DEPOSITO} L</p>
+            <p class="text-lg font-extrabold tabular-nums">${euro2(p * LITROS_DEPOSITO)}</p>
+          </div>
+          <div class="rounded-2xl bg-card px-3 py-2 ring-1 ring-line">
+            <p class="text-xs text-muted">Frente a la más barata</p>
+            <p class="text-lg font-extrabold tabular-nums ${dif > 0.0005 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">${dif > 0.0005 ? '+' + euro2(dif * LITROS_DEPOSITO) : 'Es la mejor'}</p>
+          </div>
+        </div>
+      </section>
+
+      <a href="${urlRuta(e)}" target="_blank" rel="noopener"
+        class="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 active:scale-[0.99]">
+        ${svg('ir')}Cómo llegar
+      </a>
+      <div class="grid grid-cols-4 gap-2">
+        ${accion(urlWaze(e), 'ir', 'Waze')}
+        ${accion(urlApple(e), 'mapa', 'Apple')}
+        ${accionBtn('mapa', 'pin', 'Ver mapa')}
+        ${accionBtn('compartir', 'compartir', 'Compartir')}
+      </div>
+
+      <section>
+        <h3 class="mb-2 text-sm font-bold uppercase tracking-wider text-muted">Dirección</h3>
+        <a href="${urlVer(e)}" target="_blank" rel="noopener" class="block rounded-2xl bg-field px-4 py-3 ring-1 ring-line transition hover:ring-blue-400/60">
+          <p class="text-base font-semibold">${esc(titulo(e.d).replace(/[\s,]+$/, '') || 'Sin dirección')}</p>
+          ${linea2 ? `<p class="text-sm text-muted">${esc(linea2)}</p>` : ''}
+        </a>
+      </section>
+
+      <section>
+        <h3 class="mb-2 text-sm font-bold uppercase tracking-wider text-muted">Precios</h3>
+        <ul class="grid grid-cols-2 gap-2">${precios}</ul>
+      </section>
+
+      ${horario ? `<section>
+        <h3 class="mb-2 flex items-center gap-1.5 text-sm font-bold uppercase tracking-wider text-muted">${svg('reloj', 'h-4 w-4')}Horario</h3>
+        <ul class="divide-y divide-line rounded-2xl bg-field px-4 py-1 text-base ring-1 ring-line">${horario}</ul>
+      </section>` : ''}
+
+      <p class="text-center text-xs text-subtle">
+        Datos del Ministerio para la Transición Ecológica${estado.datos?.fecha ? ` · ${esc(fechaBonita(estado.datos.fecha))}` : ''}.<br />
+        Precios orientativos; confírmalos en el surtidor.
+      </p>
+    </div>`;
+}
+
+let fichaActual = null;
+function abrirFicha(id) {
+  const e = ultimo?.lista.find((x) => String(x.id) === String(id));
+  if (!e) return;
+  fichaActual = e;
+  $('#ficha-contenido').innerHTML = htmlFicha(e);
+  $('#ficha-contenido').scrollTop = 0;
+  if (!dialogo.open) {
+    dialogo.showModal();
+    // El botón «atrás» del móvil cierra la ficha en vez de salir de la app
+    history.pushState({ ficha: true }, '');
+  }
+  mapa?.closePopup();
+}
+
+function cerrarFicha() {
+  if (!dialogo.open) return;
+  dialogo.close();
+}
+dialogo.addEventListener('close', () => {
+  if (history.state?.ficha) history.back();
+});
+addEventListener('popstate', () => {
+  if (dialogo.open) dialogo.close();
+});
+// Pulsar fuera (en el fondo) cierra
+dialogo.addEventListener('click', (ev) => {
+  if (ev.target === dialogo) cerrarFicha();
+});
+
+async function compartirFicha(boton) {
+  const e = fichaActual;
+  const c = COMBUSTIBLES.find((x) => x.k === estado.combustible);
+  const texto = `${titulo(e.n)} · ${c.nombre} a ${euro(e.pr[c.k])} €/L\n${direccion(e)}`;
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: titulo(e.n), text: texto, url: urlVer(e) });
+      return;
+    }
+    await navigator.clipboard.writeText(`${texto}\n${urlVer(e)}`);
+    const span = boton.querySelector('span');
+    span.textContent = '¡Copiado!';
+    setTimeout(() => (span.textContent = 'Compartir'), 2000);
+  } catch {
+    /* compartir cancelado */
+  }
+}
+
+dialogo.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-accion-ficha]');
+  if (!b) return;
+  const a = b.dataset.accionFicha;
+  if (a === 'cerrar') cerrarFicha();
+  if (a === 'compartir') compartirFicha(b);
+  if (a === 'mapa') {
+    enfocar = fichaActual.id;
+    cerrarFicha();
+    estado.vista = 'mapa';
+    guardarPrefs();
+    render();
+    $('#mapa-wrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+});
+
+// Abrir la ficha: tarjeta de la lista (salvo el botón «Ir») o «Ver detalles» del mapa
+$('#lista').addEventListener('click', (ev) => {
+  if (ev.target.closest('a')) return;
+  const t = ev.target.closest('[data-ficha]');
+  if (t) abrirFicha(t.dataset.ficha);
+});
+$('#lista').addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Enter' && ev.key !== ' ') return;
+  const t = ev.target.closest('article[data-ficha]');
+  if (t && ev.target === t) {
+    ev.preventDefault();
+    abrirFicha(t.dataset.ficha);
+  }
+});
+document.addEventListener(
+  'click',
+  (ev) => {
+    const t = ev.target.closest('.leaflet-popup [data-ficha]');
+    if (t) abrirFicha(t.dataset.ficha);
+  },
+  true,
+);
 
 // ---------- Eventos ----------
 $('#combustibles').addEventListener('click', (ev) => {

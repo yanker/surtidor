@@ -1,23 +1,19 @@
 import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import { handler } from './lib/estaciones.js';
+import { handlerRuta } from './lib/ruta.js';
 
-// En desarrollo servimos /api/estaciones con el mismo código que usa Vercel
-const apiLocal = () => ({
-  name: 'api-local',
-  configureServer(server) {
-    server.middlewares.use('/api/estaciones', (req, res) => {
-      req.url = '/api/estaciones' + (req.url || '');
-      handler(req, res);
+// En desarrollo servimos /api/* con el mismo código que usa Vercel
+const RUTAS_API = { '/api/estaciones': handler, '/api/ruta': handlerRuta };
+const montar = (server) => {
+  for (const [ruta, fn] of Object.entries(RUTAS_API)) {
+    server.middlewares.use(ruta, (req, res) => {
+      req.url = ruta + (req.url || '');
+      fn(req, res);
     });
-  },
-  configurePreviewServer(server) {
-    server.middlewares.use('/api/estaciones', (req, res) => {
-      req.url = '/api/estaciones' + (req.url || '');
-      handler(req, res);
-    });
-  },
-});
+  }
+};
+const apiLocal = () => ({ name: 'api-local', configureServer: montar, configurePreviewServer: montar });
 
 export default defineConfig({
   plugins: [tailwindcss(), apiLocal()],

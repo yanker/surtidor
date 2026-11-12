@@ -60,6 +60,14 @@ const fechaBonita = (f) => {
   const r = String(f).match(/^(\S+)\s+(\d{1,2}:\d{2})/);
   return r ? `${r[1]} a las ${r[2]}` : f;
 };
+// En la cabecera de resultados: "de hoy, a las 13:21" o "del 06/11, a las 7:41"
+const fechaCorta = (f) => {
+  const r = String(f).match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}:\d{2})/);
+  if (!r) return `del ${fechaBonita(f)}`;
+  const hoy = new Date();
+  const esHoy = +r[1] === hoy.getDate() && +r[2] === hoy.getMonth() + 1 && +r[3] === hoy.getFullYear();
+  return esHoy ? `de hoy, a las ${r[4]}` : `del ${r[1]}/${r[2]}, a las ${r[4]}`;
+};
 const titulo = (s) => (s || '').toLowerCase().replace(/(^|[\s,.(/-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
 
 function leer(clave, porDefecto) {
@@ -80,7 +88,7 @@ function guardarPrefs() {
 // Por defecto sigue al sistema. En cuanto el usuario elige uno con el botón,
 // se recuerda (localStorage, sin cookies) y ya no cambia con el sistema.
 const mqOscuro = matchMedia('(prefers-color-scheme: dark)');
-const esOscuro = () => document.documentElement.classList.contains('dark');
+const esOscuro = () => document.documentElement.dataset.theme === 'dark';
 
 function aplicarTema() {
   let t = null;
@@ -88,7 +96,7 @@ function aplicarTema() {
     t = localStorage.getItem(CLAVE_TEMA);
   } catch {}
   const oscuro = t ? t === 'dark' : mqOscuro.matches;
-  document.documentElement.classList.toggle('dark', oscuro);
+  document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
   $('meta[name=theme-color]').content = token('--color-bg');
   $('#btn-tema').title = `Tema ${oscuro ? 'oscuro' : 'claro'}${t ? '' : ' (sistema)'}. Pulsa para cambiar`;
 }
@@ -216,49 +224,42 @@ function sinUbicacion(motivo) {
 }
 
 // ---------- Render ----------
-const SEG_ON = 'bg-accent text-blanco shadow';
+// Segmentos (modo, orden, vista): el elegido se levanta como una tarjeta; el azul queda para
+// el combustible seleccionado y las acciones principales
+const SEG_ON = 'bg-card text-fg shadow-sm ring-1 ring-line';
 const SEG_OFF = 'text-muted hover:text-fg';
 
-// Los 4 primeros son los habituales; el resto se despliega con «Más combustibles».
-// Si el seleccionado es uno de los menos comunes, se muestran todos para que se vea marcado.
-const HABITUALES = 4;
-let verTodosCombustibles = false;
-
+let tiraColocada = false;
 function renderControles() {
-  const extraSeleccionado = COMBUSTIBLES.findIndex((c) => c.k === estado.combustible) >= HABITUALES;
-  const todos = verTodosCombustibles || extraSeleccionado;
-  const btnMas = $('#btn-mas-combustibles');
-  btnMas.classList.toggle('hidden', extraSeleccionado);
-  btnMas.setAttribute('aria-expanded', String(todos));
-  $('#texto-mas-combustibles').textContent = todos
-    ? 'Menos combustibles'
-    : 'Más combustibles';
-  $('#flecha-mas-combustibles').classList.toggle('rotate-180', todos);
-
-  $('#combustibles').innerHTML = (todos ? COMBUSTIBLES : COMBUSTIBLES.slice(0, HABITUALES)).map(
-    (c) => {
-      const on = c.k === estado.combustible;
-      return `<button data-c="${c.k}" aria-pressed="${on}" title="${c.nombre} (${c.sub})" class="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 ring-1 transition active:scale-95 ${
-        on ? 'bg-accent text-blanco ring-2 ring-accent shadow-lg' : 'bg-field text-fg ring-line hover:ring-accent/50'
-      }">
+  const tira = $('#combustibles');
+  tira.innerHTML = COMBUSTIBLES.map((c) => {
+    const on = c.k === estado.combustible;
+    return `<button data-c="${c.k}" aria-pressed="${on}" title="${c.nombre}: ${c.sub}" class="flex min-h-16 min-w-[4.75rem] shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 ring-1 transition-colors motion-safe:active:scale-95 ${
+      on ? 'bg-accent text-accent-ink ring-accent' : 'bg-card text-fg ring-line hover:ring-accent/50'
+    }">
         ${iconoCombustible(c, 'h-7 w-7')}
         <span class="text-sm font-bold leading-tight">${c.corto}</span>
       </button>`;
-    },
-  ).join('');
+  }).join('');
+  // En el móvil la tira se desliza: al abrir, el combustible guardado tiene que verse
+  if (!tiraColocada) {
+    tiraColocada = true;
+    const b = tira.querySelector('[aria-pressed="true"]');
+    if (b && b.offsetLeft + b.offsetWidth > tira.clientWidth) tira.scrollLeft = b.offsetLeft - 16;
+  }
   $('#radio').value = String(estado.radio);
   $('#solo-abiertas').checked = estado.soloAbiertas;
   document.querySelectorAll('.orden').forEach((b) => {
-    b.className = `orden flex-1 rounded-xl px-3 text-sm font-semibold transition ${b.dataset.orden === estado.orden ? SEG_ON : SEG_OFF}`;
+    b.className = `orden flex-1 rounded-lg px-2.5 text-sm font-semibold transition-colors ${b.dataset.orden === estado.orden ? SEG_ON : SEG_OFF}`;
   });
   document.querySelectorAll('.vista').forEach((b) => {
-    b.className = `vista rounded-xl px-5 py-2 text-base font-semibold transition ${b.dataset.vista === estado.vista ? SEG_ON : SEG_OFF}`;
+    b.className = `vista rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${b.dataset.vista === estado.vista ? SEG_ON : SEG_OFF}`;
   });
   const viaje = estado.modo === 'viaje';
   document.querySelectorAll('.modo').forEach((b) => {
     const on = b.dataset.modo === estado.modo;
     b.setAttribute('aria-selected', String(on));
-    b.className = `modo flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-base font-semibold transition ${on ? SEG_ON : SEG_OFF}`;
+    b.className = `modo flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-2 py-2.5 text-base font-semibold transition-colors ${on ? SEG_ON : SEG_OFF}`;
   });
   $('#label-radio').classList.toggle('hidden', viaje);
   $('#label-tramo').classList.toggle('hidden', !viaje);
@@ -331,16 +332,10 @@ function render() {
   $('#pestanas').classList.toggle('hidden', !mostrar);
   $('#pestanas').classList.toggle('flex', mostrar);
   $('#resumen').classList.toggle('hidden', !mostrar);
-  $('#resumen').classList.toggle('grid', mostrar);
   $('#lista').classList.toggle('hidden', !mostrar || estado.vista !== 'lista');
   $('#mapa-wrap').classList.toggle('hidden', !mostrar || estado.vista !== 'mapa');
 
   const fecha = viaje ? estado.viaje?.fecha : estado.datos?.fecha;
-  if (fecha) {
-    $('#fecha-datos').textContent = `Precios actualizados: ${fecha}`;
-    $('#info-fecha').textContent = ` · Actualizado el ${fechaBonita(fecha)}`;
-    $('#info-datos').classList.replace('hidden', 'flex');
-  }
   if (!mostrar) {
     $('#lista').innerHTML = '';
     return;
@@ -354,31 +349,37 @@ function render() {
   const ahorro = (media - min) * LITROS_DEPOSITO;
   ultimo = { lista, min, max, media };
 
+  const n = lista.length;
+  const donde = viaje
+    ? `en ${Math.round(kmTramo())} km de ruta`
+    : `a menos de ${estado.radio} km`;
   $('#contador').innerHTML = `
-    <span class="text-3xl font-extrabold tabular-nums tracking-tight text-fg">${lista.length}</span>
-    <span class="font-semibold">${lista.length === 1 ? 'gasolinera' : 'gasolineras'}${estado.soloAbiertas ? ' abiertas' : ''}</span>
-    <span class="mx-1 text-subtle">·</span>
-    <span class="text-3xl font-extrabold tabular-nums tracking-tight text-accent-fg">${viaje ? Math.round(kmTramo()) : estado.radio}</span>
-    <span class="font-semibold">km${viaje ? ' de ruta' : ''}</span>`;
+    <h2 class="text-2xl font-bold tracking-tight"><span class="tabular-nums">${n}</span> ${n === 1 ? 'gasolinera' : 'gasolineras'}</h2>
+    <p class="text-sm text-muted">${estado.soloAbiertas ? (n === 1 ? 'Abierta, ' : 'Abiertas, ') : ''}${donde}${fecha ? `. Precios ${esc(fechaCorta(fecha))}` : ''}</p>`;
 
+  // Por precio, la primera tarjeta ya es la más barata; por distancia se recuerda arriba cuál es
+  const recordarBarata = estado.orden === 'distancia' && masBarata !== lista[0];
   $('#resumen').innerHTML = `
-    <div class="col-span-3 flex items-center gap-3 rounded-3xl bg-accent p-4 text-blanco shadow-xl sm:col-span-1 sm:block">
-      <div class="min-w-0 flex-1">
-        <p class="text-xs font-bold uppercase tracking-wider text-accent-ink/80">Más barata</p>
-        <p class="truncate text-base font-semibold">${esc(titulo(masBarata.n) || 'Gasolinera')} · ${viaje ? 'en ' : ''}${km(masBarata.km)}</p>
-      </div>
-      <p class="text-4xl font-extrabold tabular-nums tracking-tight">${euro(min)}<span class="text-base font-bold">€</span></p>
-    </div>
-    <div class="col-span-3 grid grid-cols-2 gap-2 sm:col-span-2">
-      <div class="rounded-3xl bg-card p-4 shadow-sm ring-1 ring-line">
-        <p class="text-xs font-bold uppercase tracking-wider text-muted">Precio medio</p>
-        <p class="mt-1 text-3xl font-extrabold tabular-nums">${euro(media)}<span class="text-sm text-muted">€/L</span></p>
-      </div>
-      <div class="rounded-3xl bg-card p-4 shadow-sm ring-1 ring-line">
-        <p class="text-xs font-bold uppercase tracking-wider text-muted">Ahorro en ${LITROS_DEPOSITO} L</p>
-        <p class="mt-1 text-3xl font-extrabold tabular-nums text-accent-fg">${euro2(ahorro)}</p>
-        <p class="text-xs text-subtle">vs. la media de la ${viaje ? 'ruta' : 'zona'}</p>
-      </div>
+    <div class="overflow-hidden rounded-2xl bg-card ring-1 ring-line">
+      ${recordarBarata ? `
+      <button type="button" data-ficha="${esc(masBarata.id)}" class="flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left transition-colors hover:bg-field">
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm text-muted">La más barata</span>
+          <span class="block truncate font-semibold">${esc(titulo(masBarata.n) || 'Gasolinera')}, ${viaje ? 'en ' : 'a '}${km(masBarata.km)}</span>
+        </span>
+        <span class="text-2xl font-extrabold tabular-nums text-barato">${euro(min)}<span class="text-sm font-bold">€</span></span>
+      </button>` : ''}
+      <dl class="grid grid-cols-2 divide-x divide-line">
+        <div class="px-4 py-3">
+          <dt class="text-sm text-muted">Precio medio</dt>
+          <dd class="text-2xl font-extrabold tabular-nums">${euro(media)}<span class="text-sm font-bold text-muted">€/L</span></dd>
+        </div>
+        <div class="px-4 py-3">
+          <dt class="text-sm text-muted">Ahorro en ${LITROS_DEPOSITO} L</dt>
+          <dd class="text-2xl font-extrabold tabular-nums text-barato">${euro2(ahorro)}</dd>
+          <dd class="text-xs text-muted">frente a la media de la ${viaje ? 'ruta' : 'zona'}</dd>
+        </div>
+      </dl>
     </div>`;
 
   $('#lista').innerHTML = lista
@@ -386,42 +387,40 @@ function render() {
       const p = e.pr[c];
       const col = colorPrecio(p, min, max);
       const dif = p - min;
+      const nombre = esc(titulo(e.n) || 'Gasolinera');
       const otros = COMBUSTIBLES.filter((x) => x.k !== c && e.pr[x.k])
         .slice(0, 3)
         .map((x) => `<span class="inline-flex items-center gap-1 rounded-lg bg-field py-0.5 pl-1 pr-1.5 text-muted ring-1 ring-line" title="${x.nombre}">${iconoCombustible(x, 'h-4 w-4')}${x.corto} <b class="font-bold tabular-nums text-fg">${euro(e.pr[x.k])}</b></span>`)
         .join('');
+      // Toda la tarjeta abre la ficha: el botón del nombre se estira sobre ella (::after).
+      // «Ir» queda por encima y es un enlace aparte, sin anidar controles.
       return `
       <li class="aparecer" style="animation-delay:${Math.min(i, 12) * 25}ms">
-        <article data-ficha="${esc(e.id)}" tabindex="0" role="button" aria-label="Ver detalles de ${esc(titulo(e.n) || 'la gasolinera')}"
-          class="tarjeta relative overflow-hidden rounded-3xl bg-card p-4 shadow-sm ring-1 ring-line transition hover:ring-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.99]">
-          <span class="absolute inset-y-0 left-0 w-1 ${col.bg}"></span>
+        <article class="relative rounded-2xl bg-card p-4 ring-1 ring-line transition-shadow hover:ring-accent/50 has-[[data-ficha]:focus-visible]:ring-2 has-[[data-ficha]:focus-visible]:ring-accent-fg">
           <div class="flex items-start gap-3">
             <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                ${i === 0 && estado.orden === 'precio' ? '<span class="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-accent-fg">Top</span>' : ''}
-                <h2 class="truncate text-lg font-bold">${esc(titulo(e.n) || 'Gasolinera')}</h2>
-              </div>
+              <h3 class="text-lg font-bold leading-snug">
+                <button type="button" data-ficha="${esc(e.id)}" class="text-left after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none">${nombre}</button>
+              </h3>
               <p class="mt-0.5 line-clamp-2 text-base leading-snug text-muted">${esc(direccion(e))}</p>
-              <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-                <span class="inline-flex items-center gap-1 text-xl font-extrabold tabular-nums text-accent-fg">
-                  <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>${viaje ? 'en ' : ''}${km(e.km)}
-                </span>
-                ${viaje ? `<span class="rounded-md bg-field px-1.5 py-0.5 font-semibold ring-1 ring-line" title="Distancia desde la carretera">desvío ${km(e.dv)}</span>` : ''}
-                ${badgeAbierta(e.abierta)}
-                <span class="truncate" title="${esc(e.h)}">${esc(e.h)}</span>
-              </div>
             </div>
-            <div class="text-right">
-              <p class="text-3xl font-extrabold tabular-nums tracking-tight ${col.txt}">${euro(p)}<span class="text-sm">€</span></p>
-              <p class="text-sm tabular-nums text-subtle">${dif > 0.0005 ? '+' + euro(dif) + ' €' : 'el mejor precio'}</p>
+            <div class="shrink-0 text-right">
+              <p class="text-3xl font-extrabold tabular-nums tracking-tight ${col.txt}">${euro(p)}<span class="text-sm font-bold">€</span></p>
+              <p class="text-sm tabular-nums text-muted">${dif > 0.0005 ? '+' + euro(dif) + ' €' : 'la más barata'}</p>
             </div>
           </div>
-          <div class="mt-3 flex items-center justify-between gap-2">
-            <div class="flex min-w-0 flex-wrap gap-1.5 text-xs">${otros}</div>
-            <span class="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded-xl px-2 py-2.5 text-sm font-semibold text-accent-fg">
-              Detalles<svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+          <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <span class="inline-flex items-center gap-1 font-semibold">
+              <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 text-muted" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>${viaje ? 'en ' : ''}${km(e.km)}
             </span>
-            <a href="${urlRuta(e)}" target="_blank" rel="noopener" class="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 text-base font-bold text-blanco shadow transition hover:bg-accent-hover">
+            ${viaje ? `<span class="text-muted" title="Distancia desde la carretera">desvío ${km(e.dv)}</span>` : ''}
+            ${badgeAbierta(e.abierta)}
+            <span class="min-w-0 truncate text-muted" title="${esc(e.h)}">${esc(e.h)}</span>
+          </div>
+          <div class="mt-3 flex items-end justify-between gap-3">
+            <div class="flex min-w-0 flex-wrap gap-1.5 text-xs">${otros}</div>
+            <a href="${urlRuta(e)}" target="_blank" rel="noopener" aria-label="Cómo llegar a ${nombre}"
+              class="relative z-10 ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-accent-soft px-4 py-2.5 text-sm font-bold text-accent-fg transition-colors hover:bg-accent hover:text-accent-ink">
               <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 19-9-9 19-2-8-8-2z"/></svg>Ir
             </a>
           </div>
@@ -437,7 +436,7 @@ const boton = (accion, texto) =>
   `<button data-accion="${accion}" class="mt-4 rounded-xl bg-accent px-4 py-2 text-sm font-bold text-blanco shadow-lg hover:bg-accent-hover">${texto}</button>`;
 
 function panel(icono, tituloTxt, texto, extra = '') {
-  return `<div class="aparecer rounded-3xl bg-card p-8 text-center shadow-sm ring-1 ring-line">
+  return `<div class="aparecer rounded-2xl bg-card p-8 text-center shadow-sm ring-1 ring-line">
     <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-field text-muted ring-1 ring-line">${svg(icono, 'h-7 w-7')}</div>
     <h2 class="mt-3 text-xl font-bold">${tituloTxt}</h2>
     <p class="mt-1 text-base text-muted">${texto}</p>${extra}</div>`;
@@ -450,7 +449,7 @@ function panelSinUbicacion() {
     `${esc(estado.motivoSinUbicacion || '')} Activa la ubicación o busca una localidad o código postal.`,
     `${boton('ubicar', 'Usar mi ubicación')}
      <form id="form-buscar" class="mx-auto mt-4 flex max-w-sm gap-2">
-       <input name="q" required placeholder="Ej.: Valencia o 28013" class="min-w-0 flex-1 rounded-xl bg-field px-3 py-2 text-sm ring-1 ring-line placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-accent" />
+       <input name="q" required placeholder="Ej.: Valencia o 28013" class="min-w-0 flex-1 rounded-xl bg-field px-3 py-2 text-sm ring-1 ring-line-strong placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-accent" />
        <button class="rounded-xl bg-field px-4 py-2 text-sm font-semibold ring-1 ring-line hover:text-accent-fg">Buscar</button>
      </form>
      <p id="error-buscar" class="mt-2 text-xs text-caro"></p>`,
@@ -458,12 +457,12 @@ function panelSinUbicacion() {
 }
 
 function esqueleto(texto = 'Buscando las gasolineras más baratas cerca de ti…') {
-  const fila = `<div class="h-28 animate-pulse rounded-3xl bg-card ring-1 ring-line"></div>`;
-  return `<div class="space-y-2.5"><p class="px-1 text-base text-muted">${texto}</p>${fila.repeat(4)}</div>`;
+  const fila = `<div class="h-32 animate-pulse rounded-2xl bg-card ring-1 ring-line"></div>`;
+  return `<div class="space-y-2"><p class="px-1 text-base text-muted">${texto}</p>${fila.repeat(4)}</div>`;
 }
 
 // ---------- Mapa (Leaflet, carga perezosa) ----------
-// Teselas de OpenStreetMap (sin clave). En tema oscuro se invierten por CSS (.dark .leaflet-tile-pane)
+// Teselas de OpenStreetMap (sin clave). En tema oscuro se invierten por CSS ([data-theme='dark'] .leaflet-tile-pane)
 const token = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const TESELAS = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 let L = null;
@@ -668,7 +667,7 @@ function htmlFicha(e) {
         <div class="min-w-0 flex-1">
           <h2 id="ficha-nombre" class="text-2xl font-extrabold leading-tight">${esc(nombre)}</h2>
           <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span class="inline-flex items-center gap-1 font-bold text-accent-fg">${svg('pin', 'h-4 w-4')}${enViaje ? `en ${km(e.km)} por la ruta` : `a ${km(e.km)}`}</span>
+            <span class="inline-flex items-center gap-1 font-semibold">${svg('pin', 'h-4 w-4 text-muted')}${enViaje ? `en ${km(e.km)} por la ruta` : `a ${km(e.km)}`}</span>
             ${enViaje ? `<span class="font-semibold text-muted">desvío ${km(e.dv)}</span>` : ''}
             ${badgeAbierta(e.abierta)}
           </div>
@@ -699,7 +698,7 @@ function htmlFicha(e) {
       </section>
 
       <a href="${urlRuta(e)}" target="_blank" rel="noopener"
-        class="flex items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-4 text-lg font-bold text-blanco shadow-lg transition hover:bg-accent-hover active:scale-[0.99]">
+        class="flex items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-4 text-lg font-bold text-blanco shadow-lg transition hover:bg-accent-hover motion-safe:active:scale-[0.99]">
         ${svg('ir')}Cómo llegar
       </a>
       <div class="grid grid-cols-4 gap-2">
@@ -799,18 +798,14 @@ dialogo.addEventListener('click', (ev) => {
 });
 
 // Abrir la ficha: tarjeta de la lista (salvo el botón «Ir») o «Ver detalles» del mapa
+$('#resumen').addEventListener('click', (ev) => {
+  const t = ev.target.closest('[data-ficha]');
+  if (t) abrirFicha(t.dataset.ficha);
+});
 $('#lista').addEventListener('click', (ev) => {
   if (ev.target.closest('a')) return;
   const t = ev.target.closest('[data-ficha]');
   if (t) abrirFicha(t.dataset.ficha);
-});
-$('#lista').addEventListener('keydown', (ev) => {
-  if (ev.key !== 'Enter' && ev.key !== ' ') return;
-  const t = ev.target.closest('article[data-ficha]');
-  if (t && ev.target === t) {
-    ev.preventDefault();
-    abrirFicha(t.dataset.ficha);
-  }
 });
 document.addEventListener(
   'click',
@@ -909,7 +904,7 @@ function renderViaje() {
             i === 0 ? '<span class="rounded-full bg-accent-soft px-2 py-0.5 text-accent-fg">Más rápida</span>' : '',
             v.rutas.length > 1 && d.min === mejorPrecio ? '<span class="rounded-full bg-barato/15 px-2 py-0.5 text-barato">Más barata</span>' : '',
           ].join('');
-          return `<button type="button" data-ruta="${i}" class="aparecer block w-full rounded-3xl bg-card p-4 text-left shadow-sm ring-1 transition hover:ring-accent/50 active:scale-[0.99] ${sel ? 'ring-2 ring-accent' : 'ring-line'}" style="animation-delay:${i * 40}ms">
+          return `<button type="button" data-ruta="${i}" class="aparecer block w-full rounded-2xl bg-card p-4 text-left shadow-sm ring-1 transition hover:ring-accent/50 motion-safe:active:scale-[0.99] ${sel ? 'ring-2 ring-accent' : 'ring-line'}" style="animation-delay:${i * 40}ms">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <div class="flex flex-wrap gap-1.5 text-xs font-semibold">${etiquetas}</div>
@@ -946,7 +941,7 @@ function renderViaje() {
       lineaGps = `Estás a ${km(g.desvio)} de la ruta. Si has cambiado de camino, planifica de nuevo.`;
   }
   $('#barra-viaje').innerHTML = `
-    <div class="rounded-3xl bg-accent p-4 text-blanco shadow-xl">
+    <div class="rounded-2xl bg-accent p-4 text-accent-ink">
       <div class="flex items-start gap-3">
         <div class="min-w-0 flex-1">
           <p class="text-sm font-medium text-accent-ink/80">${estado.siguiendo ? 'En marcha' : 'Tu viaje'}</p>
@@ -963,7 +958,7 @@ function renderViaje() {
           ${lineaGps ? `<p class="mt-1 rounded-xl bg-blanco/15 px-3 py-2 text-sm">${lineaGps}</p>` : ''}
         </div>` : ''}
       <button type="button" data-accion-viaje="${estado.siguiendo ? 'detener' : 'iniciar'}"
-        class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-lg font-bold shadow transition active:scale-[0.99] ${estado.siguiendo ? 'bg-blanco/15 ring-1 ring-blanco/40 hover:bg-blanco/25' : 'bg-blanco text-accent hover:bg-blanco/90'}">
+        class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-lg font-bold shadow transition motion-safe:active:scale-[0.99] ${estado.siguiendo ? 'bg-blanco/15 ring-1 ring-blanco/40 hover:bg-blanco/25' : 'bg-blanco text-accent hover:bg-blanco/90'}">
         ${estado.siguiendo
           ? '<svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Detener seguimiento'
           : '<svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 19-9-9 19-2-8-8-2z"/></svg>Iniciar viaje'}
@@ -1213,10 +1208,6 @@ $('#combustibles').addEventListener('click', (ev) => {
   estado.combustible = b.dataset.c;
   guardarPrefs();
   render();
-});
-$('#btn-mas-combustibles').addEventListener('click', () => {
-  verTodosCombustibles = !verTodosCombustibles;
-  renderControles();
 });
 $('#radio').addEventListener('change', (ev) => {
   estado.radio = Number(ev.target.value);

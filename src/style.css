@@ -2,10 +2,14 @@
  * theme: brand (el azul de Surtidor, ya en iconos, splash e imagen OG) · fuel: etiquetas EN 16942 · signature: la lista de precios
  * critique: el precio manda; el azul solo marca lo seleccionado y la acción principal; verde, ámbar y rojo solo hablan de precio
  * built: the project · redesign: full */
+/* Hallmark · waive 39b · fuel tiles at 64px, the EN 16942 label above its name · en Surtidor el selector de combustible es la firma de la pantalla: Diésel, 98 o GLP se eligen con el pulgar */
+/* Hallmark · dismissed 41 · accent-ink only sits on the accent fill, never on the page background */
+/* Hallmark · dropped btn-mas-combustibles, texto-mas-combustibles, flecha-mas-combustibles · la tira enseña los ocho combustibles, ya no hace falta desplegar */
+/* Hallmark · dropped info-datos, info-fecha, fecha-datos · 69 names the echo: la fecha de los precios sale una vez, en la cabecera de resultados */
 @import 'tailwindcss';
 
-/* Modo oscuro por clase (.dark en <html>), controlado por el sistema o por el botón */
-@custom-variant dark (&:where(.dark, .dark *));
+/* Modo oscuro por atributo (data-theme="dark" en <html>), controlado por el sistema o por el botón */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
@@ -18,7 +22,7 @@
   --color-card: oklch(0.995 0.003 262);
   --color-field: oklch(0.955 0.012 262);
   --color-line: oklch(0.9 0.02 262);
-  --color-line-strong: oklch(0.64 0.03 262);
+  --color-line-strong: oklch(0.6 0.03 262);
   --color-tile: oklch(0.93 0.016 262);
   --color-velo: oklch(0.18 0.04 264 / 0.55);
 
@@ -46,7 +50,7 @@
   --color-blanco: oklch(0.995 0.003 262);
 }
 
-.dark {
+[data-theme='dark'] {
   --color-bg: oklch(0.14 0.045 264);
   --color-fg: oklch(0.95 0.02 262);
   --color-muted: oklch(0.77 0.04 262);
@@ -84,6 +88,9 @@
     cursor: not-allowed;
     opacity: 0.6;
   }
+  :where(button, [role='button']):active:not(:disabled) {
+    filter: brightness(0.94);
+  }
 
   /* Foco con teclado: un anillo del acento, sin transición */
   :where(a, button, input, select, summary, [tabindex]):focus-visible {
@@ -104,7 +111,7 @@ html {
   -webkit-tap-highlight-color: transparent;
   scrollbar-color: var(--color-line-strong) transparent;
 }
-html.dark {
+html[data-theme='dark'] {
   color-scheme: dark;
 }
 
@@ -144,7 +151,7 @@ html.dark {
   font-family: inherit;
 }
 /* Mapa oscuro: invertimos las teselas claras de OSM */
-.dark .leaflet-tile-pane {
+[data-theme='dark'] .leaflet-tile-pane {
   filter: invert(1) hue-rotate(200deg) brightness(0.9) contrast(0.85) saturate(0.5);
 }
 

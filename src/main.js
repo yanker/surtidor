@@ -4,27 +4,9 @@ import 'leaflet/dist/leaflet.css';
 import { estaAbierta } from './horario.js';
 import { UPSTREAM, compactar, filtrarCercanas, distanciaKm } from '../lib/estaciones.js';
 import { DESVIOS, calcularViaje, prepararRuta, proyectar } from '../lib/ruta.js';
+import { COMBUSTIBLES, combustible, iconoCombustible } from './combustibles.js';
 
 // ---------- Configuración ----------
-// Cada combustible tiene su color claro (`suave`); el seleccionado se marca en el azul del tema
-const COMBUSTIBLES = [
-  { k: 'g95', nombre: 'Gasolina 95', corto: '95', sub: 'Gasolina',
-    suave: 'bg-emerald-100 text-emerald-800 ring-emerald-200 dark:bg-emerald-400/15 dark:text-emerald-300 dark:ring-emerald-400/25' },
-  { k: 'diesel', nombre: 'Diésel', corto: 'Diésel', sub: 'Gasóleo A',
-    suave: 'bg-amber-100 text-amber-800 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-400/25' },
-  { k: 'g98', nombre: 'Gasolina 98', corto: '98', sub: 'Gasolina',
-    suave: 'bg-teal-100 text-teal-800 ring-teal-200 dark:bg-teal-400/15 dark:text-teal-300 dark:ring-teal-400/25' },
-  { k: 'dieselPlus', nombre: 'Diésel+', corto: 'Diésel+', sub: 'Premium',
-    suave: 'bg-orange-100 text-orange-800 ring-orange-200 dark:bg-orange-400/15 dark:text-orange-300 dark:ring-orange-400/25' },
-  { k: 'g95e10', nombre: '95 E10', corto: 'E10', sub: 'Gasolina',
-    suave: 'bg-lime-100 text-lime-800 ring-lime-200 dark:bg-lime-400/15 dark:text-lime-300 dark:ring-lime-400/25' },
-  { k: 'glp', nombre: 'GLP', corto: 'GLP', sub: 'Autogás',
-    suave: 'bg-sky-100 text-sky-800 ring-sky-200 dark:bg-sky-400/15 dark:text-sky-300 dark:ring-sky-400/25' },
-  { k: 'gnc', nombre: 'GNC', corto: 'GNC', sub: 'Gas natural',
-    suave: 'bg-violet-100 text-violet-800 ring-violet-200 dark:bg-violet-400/15 dark:text-violet-300 dark:ring-violet-400/25' },
-  { k: 'adblue', nombre: 'AdBlue', corto: 'AdBlue', sub: 'Aditivo',
-    suave: 'bg-indigo-100 text-indigo-800 ring-indigo-200 dark:bg-indigo-400/15 dark:text-indigo-300 dark:ring-indigo-400/25' },
-];
 const LITROS_DEPOSITO = 50;
 const CLAVE_PREFS = 'surtidor:prefs';
 const CLAVE_TEMA = 'surtidor:tema';
@@ -256,11 +238,11 @@ function renderControles() {
   $('#combustibles').innerHTML = (todos ? COMBUSTIBLES : COMBUSTIBLES.slice(0, HABITUALES)).map(
     (c) => {
       const on = c.k === estado.combustible;
-      return `<button data-c="${c.k}" aria-pressed="${on}" class="flex min-h-14 flex-col items-center justify-center rounded-2xl px-1 py-2 ring-1 transition active:scale-95 ${
-        on ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-lg shadow-blue-600/40 scale-[1.03] dark:ring-blue-300' : c.suave + ' hover:brightness-95'
+      return `<button data-c="${c.k}" aria-pressed="${on}" title="${c.nombre} (${c.sub})" class="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 ring-1 transition active:scale-95 ${
+        on ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-lg shadow-blue-600/40 dark:ring-blue-300' : 'bg-field text-fg ring-line hover:ring-blue-400/60'
       }">
-        <span class="text-base font-extrabold leading-tight">${c.corto}</span>
-        <span class="text-[11px] font-medium leading-tight opacity-80">${c.sub}</span>
+        ${iconoCombustible(c, 'h-7 w-7')}
+        <span class="text-sm font-bold leading-tight">${c.corto}</span>
       </button>`;
     },
   ).join('');
@@ -406,7 +388,7 @@ function render() {
       const dif = p - min;
       const otros = COMBUSTIBLES.filter((x) => x.k !== c && e.pr[x.k])
         .slice(0, 3)
-        .map((x) => `<span class="rounded-md px-1.5 py-0.5 ring-1 ${x.suave}">${x.nombre} <b class="font-extrabold">${euro(e.pr[x.k])}</b></span>`)
+        .map((x) => `<span class="inline-flex items-center gap-1 rounded-lg bg-field py-0.5 pl-1 pr-1.5 text-muted ring-1 ring-line" title="${x.nombre}">${iconoCombustible(x, 'h-4 w-4')}${x.corto} <b class="font-bold tabular-nums text-fg">${euro(e.pr[x.k])}</b></span>`)
         .join('');
       return `
       <li class="aparecer" style="animation-delay:${Math.min(i, 12) * 25}ms">
@@ -652,10 +634,11 @@ function htmlFicha(e) {
   const precios = COMBUSTIBLES.filter((x) => e.pr[x.k])
     .map((x) => {
       const sel = x.k === c;
-      return `<li class="flex items-center justify-between gap-2 rounded-2xl px-3 py-2.5 ring-1 ${sel ? 'bg-blue-600 text-white ring-blue-600' : x.suave}">
-        <span class="min-w-0">
+      return `<li class="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 ring-1 ${sel ? 'bg-blue-600 text-white ring-blue-600' : 'bg-field ring-line'}">
+        ${iconoCombustible(x, 'h-7 w-7')}
+        <span class="min-w-0 flex-1">
           <span class="block truncate text-sm font-bold">${x.nombre}</span>
-          <span class="block text-xs ${sel ? 'text-blue-100' : 'opacity-75'}">${sel ? 'Seleccionado' : x.sub}</span>
+          <span class="block truncate text-xs ${sel ? 'text-blue-100' : 'text-muted'}">${sel ? 'Seleccionado' : x.sub}</span>
         </span>
         <span class="text-lg font-extrabold tabular-nums">${euro(e.pr[x.k])}<span class="text-xs">€</span></span>
       </li>`;
@@ -692,7 +675,7 @@ function htmlFicha(e) {
 
     <div class="space-y-5 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
       <section class="rounded-3xl bg-field p-4 ring-1 ring-line">
-        <p class="text-xs font-bold uppercase tracking-wider text-muted">${COMBUSTIBLES.find((x) => x.k === c).nombre}</p>
+        <p class="flex items-center gap-1.5 text-sm font-semibold text-muted">${iconoCombustible(combustible(c), 'h-5 w-5')}${combustible(c).nombre}</p>
         <div class="mt-1 flex items-end justify-between gap-3">
           <p class="text-5xl font-extrabold tabular-nums tracking-tight ${col.txt}">${euro(p)}<span class="text-lg">€/L</span></p>
           <p class="pb-1 text-right text-sm text-muted">
@@ -732,7 +715,7 @@ function htmlFicha(e) {
 
       <section>
         <h3 class="mb-2 text-sm font-bold uppercase tracking-wider text-muted">Precios</h3>
-        <ul class="grid grid-cols-2 gap-2">${precios}</ul>
+        <ul class="grid gap-2 sm:grid-cols-2">${precios}</ul>
       </section>
 
       ${horario ? `<section>
@@ -779,7 +762,7 @@ dialogo.addEventListener('click', (ev) => {
 
 async function compartirFicha(boton) {
   const e = fichaActual;
-  const c = COMBUSTIBLES.find((x) => x.k === estado.combustible);
+  const c = combustible(estado.combustible);
   const texto = `${titulo(e.n)} · ${c.nombre} a ${euro(e.pr[c.k])} €/L\n${direccion(e)}`;
   try {
     if (navigator.share) {

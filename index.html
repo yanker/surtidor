@@ -26,7 +26,8 @@
       // Aplica el tema antes de pintar para evitar parpadeos
       (function () {
         var t = null;
-        try { t = localStorage.getItem('surtidor:tema'); } catch (e) {}
+        // Al abrir manda el sistema; el botón solo cambia el tema en esta pestaña
+        try { localStorage.removeItem('surtidor:tema'); t = sessionStorage.getItem('surtidor:tema'); } catch (e) {}
         var oscuro = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
         document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
         document.querySelector('meta[name=theme-color]').content = oscuro ? '#02081b' : '#edf2fc';

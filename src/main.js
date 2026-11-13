@@ -85,15 +85,16 @@ function guardarPrefs() {
 }
 
 // ---------- Tema claro / oscuro ----------
-// Por defecto sigue al sistema. En cuanto el usuario elige uno con el botón,
-// se recuerda (localStorage, sin cookies) y ya no cambia con el sistema.
+// Al abrir la app manda siempre el tema del sistema. El botón lo cambia solo
+// mientras la pestaña siga abierta (sessionStorage), y si el sistema cambia
+// de tema, la app vuelve a seguirlo.
 const mqOscuro = matchMedia('(prefers-color-scheme: dark)');
 const esOscuro = () => document.documentElement.dataset.theme === 'dark';
 
 function aplicarTema() {
   let t = null;
   try {
-    t = localStorage.getItem(CLAVE_TEMA);
+    t = sessionStorage.getItem(CLAVE_TEMA);
   } catch {}
   const oscuro = t ? t === 'dark' : mqOscuro.matches;
   document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
@@ -104,11 +105,16 @@ function aplicarTema() {
 $('#btn-tema').addEventListener('click', () => {
   const nuevo = esOscuro() ? 'light' : 'dark';
   try {
-    localStorage.setItem(CLAVE_TEMA, nuevo);
+    sessionStorage.setItem(CLAVE_TEMA, nuevo);
   } catch {}
   aplicarTema();
 });
-mqOscuro.addEventListener('change', aplicarTema);
+mqOscuro.addEventListener('change', () => {
+  try {
+    sessionStorage.removeItem(CLAVE_TEMA);
+  } catch {}
+  aplicarTema();
+});
 
 // ---------- Datos ----------
 async function pedirEstaciones(lat, lon, radio) {

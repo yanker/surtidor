@@ -9,16 +9,16 @@ const svg = await readFile('public/icon.svg');
 await mkdir('public/icons', { recursive: true });
 await mkdir('public/splash', { recursive: true });
 
-for (const [nombre, size] of [['icon-192', 192], ['icon-512', 512], ['apple-touch-icon', 180]]) {
+for (const [nombre, size] of [['icon-192', 192], ['icon-512', 512]]) {
   await sharp(svg, { density: 300 }).resize(size, size).png().toFile(`public/icons/${nombre}.png`);
 }
 
-// Maskable: icono con margen de seguridad sobre fondo sólido
-const interior = await sharp(svg, { density: 300 }).resize(360, 360).png().toBuffer();
-await sharp({ create: { width: 512, height: 512, channels: 4, background: '#02081b' } })
-  .composite([{ input: interior, gravity: 'center' }])
-  .png()
-  .toFile('public/icons/maskable-512.png');
+// iOS y Android (maskable) recortan las esquinas por su cuenta: el icono va cuadrado,
+// azul hasta el borde y sin transparencias (iOS pinta de negro lo transparente).
+// El surtidor queda dentro de la zona segura del maskable (círculo del 80 %).
+const cuadrado = Buffer.from(svg.toString().replace(/ rx="112"/, ''));
+await sharp(cuadrado, { density: 300 }).resize(180, 180).flatten({ background: '#1c59e4' }).png().toFile('public/icons/apple-touch-icon.png');
+await sharp(cuadrado, { density: 300 }).resize(512, 512).flatten({ background: '#1c59e4' }).png().toFile('public/icons/maskable-512.png');
 
 // ---------- Splash de iOS ----------
 // [ancho CSS, alto CSS, densidad] en vertical
@@ -45,8 +45,8 @@ const TEMAS = {
   oscuro: { fondo: '#02081b', texto: '#e7effc', sub: '#a7b5ce', media: '(prefers-color-scheme: dark)' },
 };
 
-// En el splash, el icono sin el marco oscuro exterior
-const svgSplash = Buffer.from(svg.toString().replace(/<rect width="512"[^>]*\/>/, ''));
+// En el splash y en la imagen para compartir, el icono redondeado tal cual
+const svgSplash = svg;
 const links = [];
 for (const [w, h, dpr] of PANTALLAS) {
   const W = w * dpr;

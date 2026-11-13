@@ -85,10 +85,8 @@ function guardarPrefs() {
 }
 
 // ---------- Tema claro / oscuro ----------
-// Al abrir la app manda siempre el tema del sistema. El botón lo cambia solo
-// mientras la pestaña siga abierta (sessionStorage), y si el sistema cambia
-// de tema, la app vuelve a seguirlo.
-const mqOscuro = matchMedia('(prefers-color-scheme: dark)');
+// Por defecto, tema oscuro. El botón lo cambia solo mientras la pestaña siga
+// abierta (sessionStorage); al volver a abrir la app, oscuro otra vez.
 const esOscuro = () => document.documentElement.dataset.theme === 'dark';
 
 function aplicarTema() {
@@ -96,10 +94,10 @@ function aplicarTema() {
   try {
     t = sessionStorage.getItem(CLAVE_TEMA);
   } catch {}
-  const oscuro = t ? t === 'dark' : mqOscuro.matches;
+  const oscuro = t ? t === 'dark' : true;
   document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
   $('meta[name=theme-color]').content = token('--color-bg');
-  $('#btn-tema').title = `Tema ${oscuro ? 'oscuro' : 'claro'}${t ? '' : ' (sistema)'}. Pulsa para cambiar`;
+  $('#btn-tema').title = `Tema ${oscuro ? 'oscuro' : 'claro'}. Pulsa para cambiar`;
 }
 
 $('#btn-tema').addEventListener('click', () => {
@@ -109,11 +107,12 @@ $('#btn-tema').addEventListener('click', () => {
   } catch {}
   aplicarTema();
 });
-mqOscuro.addEventListener('change', () => {
-  try {
-    sessionStorage.removeItem(CLAVE_TEMA);
-  } catch {}
-  aplicarTema();
+
+// Registro de novedades del pie
+$('#btn-novedades').addEventListener('click', (ev) => {
+  const abierto = ev.currentTarget.getAttribute('aria-expanded') === 'true';
+  ev.currentTarget.setAttribute('aria-expanded', String(!abierto));
+  $('#novedades').hidden = abierto;
 });
 
 // ---------- Datos ----------
@@ -398,15 +397,15 @@ function render() {
         .slice(0, 3)
         .map((x) => `<span class="inline-flex items-center gap-1 rounded-lg bg-field py-0.5 pl-1 pr-1.5 text-muted ring-1 ring-line" title="${x.nombre}">${iconoCombustible(x, 'h-4 w-4')}${x.corto} <b class="font-bold tabular-nums text-fg">${euro(e.pr[x.k])}</b></span>`)
         .join('');
-      // Toda la tarjeta abre la ficha: el botón del nombre se estira sobre ella (::after).
-      // «Ir» queda por encima y es un enlace aparte, sin anidar controles.
+      // Toda la tarjeta abre la ficha (data-ficha en el <article>), salvo el enlace «Ir».
+      // Con teclado, el botón del nombre hace lo mismo, sin anidar controles.
       return `
       <li class="aparecer" style="animation-delay:${Math.min(i, 12) * 25}ms">
-        <article class="relative rounded-2xl bg-card p-4 ring-1 ring-line transition-shadow hover:ring-accent/50 has-[[data-ficha]:focus-visible]:ring-2 has-[[data-ficha]:focus-visible]:ring-accent-fg">
+        <article data-ficha="${esc(e.id)}" class="relative cursor-pointer rounded-2xl bg-card p-4 ring-1 ring-line transition-shadow hover:ring-accent/50 has-[[data-ficha]:focus-visible]:ring-2 has-[[data-ficha]:focus-visible]:ring-accent-fg">
           <div class="flex items-start gap-3">
             <div class="min-w-0 flex-1">
               <h3 class="text-lg font-bold leading-snug">
-                <button type="button" data-ficha="${esc(e.id)}" class="text-left after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none">${nombre}</button>
+                <button type="button" data-ficha="${esc(e.id)}" class="text-left focus-visible:outline-none">${nombre}</button>
               </h3>
               <p class="mt-0.5 line-clamp-2 text-base leading-snug text-muted">${esc(direccion(e))}</p>
             </div>
@@ -426,7 +425,7 @@ function render() {
           <div class="mt-3 flex items-end justify-between gap-3">
             <div class="flex min-w-0 flex-wrap gap-1.5 text-xs">${otros}</div>
             <a href="${urlRuta(e)}" target="_blank" rel="noopener" aria-label="Cómo llegar a ${nombre}"
-              class="relative z-10 ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-accent-soft px-4 py-2.5 text-sm font-bold text-accent-fg transition-colors hover:bg-accent hover:text-accent-ink">
+              class="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-accent-soft px-4 py-2.5 text-sm font-bold text-accent-fg transition-colors hover:bg-accent hover:text-accent-ink">
               <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 19-9-9 19-2-8-8-2z"/></svg>Ir
             </a>
           </div>

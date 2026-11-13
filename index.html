@@ -21,14 +21,14 @@
     <meta name="twitter:title" content="Surtidor · Gasolineras baratas cerca de ti" />
     <meta name="twitter:description" content="Precios oficiales de carburantes en tiempo real de las gasolineras más cercanas a tu ubicación." />
     <meta name="twitter:image" content="https://surtidor.vercel.app/og-image.png" />
-    <meta name="theme-color" content="#edf2fc" />
+    <meta name="theme-color" content="#02081b" />
     <script>
       // Aplica el tema antes de pintar para evitar parpadeos
       (function () {
         var t = null;
-        // Al abrir manda el sistema; el botón solo cambia el tema en esta pestaña
+        // Por defecto, oscuro; el botón cambia el tema solo en esta pestaña
         try { localStorage.removeItem('surtidor:tema'); t = sessionStorage.getItem('surtidor:tema'); } catch (e) {}
-        var oscuro = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        var oscuro = t ? t === 'dark' : true;
         document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
         document.querySelector('meta[name=theme-color]').content = oscuro ? '#02081b' : '#edf2fc';
       })();
@@ -152,7 +152,7 @@
       </section>
 
       <!-- Combustible: la etiqueta EN 16942 de cada uno, en una tira que se desliza en el móvil -->
-      <div id="combustibles" class="no-scrollbar -mx-4 mt-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-8 sm:overflow-visible sm:px-0" role="group" aria-label="Combustible"></div>
+      <div id="combustibles" class="no-scrollbar -mx-4 mt-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-1 sm:mx-0 sm:grid sm:grid-cols-8 sm:overflow-visible sm:px-0" role="group" aria-label="Combustible"></div>
 
       <!-- Filtros -->
       <div class="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
@@ -186,7 +186,7 @@
         <label class="flex h-11 items-center justify-between gap-2 rounded-xl bg-field px-3 ring-1 ring-line" title="Solo gasolineras abiertas ahora">
           <span class="text-sm font-semibold"><span class="sr-only">Solo </span>Abiertas</span>
           <input id="solo-abiertas" type="checkbox" class="peer sr-only" />
-          <span aria-hidden="true" class="relative h-5 w-9 shrink-0 rounded-full bg-line-strong transition-colors peer-checked:bg-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent-fg after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-blanco after:shadow after:transition-transform peer-checked:after:translate-x-4"></span>
+          <span aria-hidden="true" class="relative h-7 w-12 shrink-0 rounded-full bg-line-strong transition-colors peer-checked:bg-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent-fg after:absolute after:left-0.5 after:top-0.5 after:h-6 after:w-6 after:rounded-full after:bg-blanco after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
         </label>
       </div>
 
@@ -215,15 +215,18 @@
       </main>
 
       <footer class="mt-10 border-t border-line px-4 pt-5 text-center">
-        <p class="text-sm text-muted">
-          Datos oficiales del
+        <p class="text-sm text-muted">Datos oficiales del</p>
+        <p class="text-sm">
           <a class="font-semibold text-accent-fg underline underline-offset-2" href="https://geoportalgasolineras.es/" target="_blank" rel="noopener">Ministerio para la Transición Ecológica</a>
         </p>
-        <p class="mt-1.5 text-xs text-subtle">Precios orientativos; confirma en el surtidor. Sin cookies ni seguimiento.</p>
-        <!-- Novedades: un "v1.2" discreto que se despliega -->
-        <details class="mx-auto mt-3 max-w-xs text-left text-xs text-subtle">
-          <summary class="mx-auto w-fit list-none rounded px-1 hover:text-muted [&::-webkit-details-marker]:hidden">v1.2</summary>
-          <dl class="mt-2 space-y-2 rounded-xl bg-field px-3 py-2.5">
+        <p class="mt-2 text-xs text-subtle">Precios orientativos; confirma en el surtidor.</p>
+        <!-- Novedades: un "v1.2" discreto al lado de "Sin cookies" que despliega el registro debajo -->
+        <p class="mt-0.5 text-xs text-subtle">
+          Sin cookies ni seguimiento.
+          <button id="btn-novedades" type="button" aria-expanded="false" aria-controls="novedades" class="ml-1 rounded px-1 underline-offset-2 hover:text-muted hover:underline">v1.2</button>
+        </p>
+        <div id="novedades" hidden class="mx-auto mt-2 max-w-xs text-left text-xs text-subtle">
+          <dl class="space-y-2 rounded-xl bg-field px-3 py-2.5">
             <div>
               <dt class="font-semibold text-muted">1.2, noviembre de 2026</dt>
               <dd>Iconos de combustible con la etiqueta europea, los ocho combustibles a la vista y un diseño más claro y accesible.</dd>
@@ -237,7 +240,7 @@
               <dd>Gasolineras más baratas cerca de ti, en lista y en mapa.</dd>
             </div>
           </dl>
-        </details>
+        </div>
       </footer>
     </div>
 

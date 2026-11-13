@@ -4,7 +4,7 @@
 //  - /api/ruta: siempre a la red (el viaje elegido ya se guarda en el navegador)
 //  - Teselas del mapa y demás orígenes: se dejan pasar
 
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE_APP = `surtidor-app-${VERSION}`;
 const CACHE_API = `surtidor-api-${VERSION}`;
 const PRECACHE = ['/', '/manifest.webmanifest', '/icon.svg', '/icons/icon-192.png'];

@@ -15,7 +15,7 @@ for (const [nombre, size] of [['icon-192', 192], ['icon-512', 512], ['apple-touc
 
 // Maskable: icono con margen de seguridad sobre fondo sólido
 const interior = await sharp(svg, { density: 300 }).resize(360, 360).png().toBuffer();
-await sharp({ create: { width: 512, height: 512, channels: 4, background: '#0b1730' } })
+await sharp({ create: { width: 512, height: 512, channels: 4, background: '#02081b' } })
   .composite([{ input: interior, gravity: 'center' }])
   .png()
   .toFile('public/icons/maskable-512.png');
@@ -41,8 +41,8 @@ const PANTALLAS = [
 ];
 
 const TEMAS = {
-  claro: { fondo: '#eef3fb', texto: '#0b1730', sub: '#5b6b85', media: '(prefers-color-scheme: light)' },
-  oscuro: { fondo: '#030a1a', texto: '#e8efff', sub: '#94a6c6', media: '(prefers-color-scheme: dark)' },
+  claro: { fondo: '#edf2fc', texto: '#0b152a', sub: '#57647b', media: '(prefers-color-scheme: light)' },
+  oscuro: { fondo: '#02081b', texto: '#e7effc', sub: '#a7b5ce', media: '(prefers-color-scheme: dark)' },
 };
 
 // En el splash, el icono sin el marco oscuro exterior
@@ -92,21 +92,12 @@ await writeFile('index.html', nuevo);
   const H = 630;
   const icono = await sharp(svgSplash, { density: 600 }).resize(260, 260).png().toBuffer();
   const capa = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
-    <defs>
-      <linearGradient id="f" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#0b1730"/><stop offset="1" stop-color="#1e3a8a"/>
-      </linearGradient>
-      <radialGradient id="b" cx="0.85" cy="0.1" r="0.6">
-        <stop offset="0" stop-color="#38bdf8" stop-opacity="0.35"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
-      </radialGradient>
-    </defs>
-    <rect width="${W}" height="${H}" fill="url(#f)"/>
-    <rect width="${W}" height="${H}" fill="url(#b)"/>
+    <rect width="${W}" height="${H}" fill="#02081b"/>
     <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
-      <text x="430" y="270" font-size="104" font-weight="800" fill="#ffffff">Surtidor</text>
-      <text x="434" y="340" font-size="40" font-weight="600" fill="#bfdbfe">Gasolineras baratas cerca de ti</text>
-      <text x="434" y="400" font-size="28" font-weight="500" fill="#93c5fd">Precios oficiales en tiempo real · Sin cookies</text>
-      <text x="434" y="500" font-size="30" font-weight="700" fill="#ffffff">surtidor.vercel.app</text>
+      <text x="430" y="270" font-size="104" font-weight="800" fill="#e7effc">Surtidor</text>
+      <text x="434" y="340" font-size="40" font-weight="600" fill="#e7effc">Gasolineras baratas cerca de ti</text>
+      <text x="434" y="400" font-size="28" font-weight="500" fill="#a7b5ce">Precios oficiales en tiempo real, sin cookies</text>
+      <text x="434" y="500" font-size="30" font-weight="700" fill="#75b0ff">surtidor.vercel.app</text>
     </g>
   </svg>`);
   await sharp(capa)

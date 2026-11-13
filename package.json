@@ -1,6 +1,6 @@
 {
   "name": "surtidor",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "PWA con los precios de las gasolineras más cercanas",
   "scripts": {
     "dev": "vite",

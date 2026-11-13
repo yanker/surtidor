@@ -1,10 +1,10 @@
 // Service worker de Surtidor
 //  - App (HTML/JS/CSS/iconos): stale-while-revalidate → abre al instante y offline
 //  - /api/estaciones: network-first con copia en caché → últimos precios si no hay red
-//  - /api/ruta: siempre a la red (el viaje elegido ya se guarda en el navegador)
+//  - /api/ruta y /version.json: siempre a la red (version.json avisa de que hay versión nueva)
 //  - Teselas del mapa y demás orígenes: se dejan pasar
 
-const VERSION = 'v6';
+const VERSION = 'v7';
 const CACHE_APP = `surtidor-app-${VERSION}`;
 const CACHE_API = `surtidor-api-${VERSION}`;
 const PRECACHE = ['/', '/manifest.webmanifest', '/icon.svg', '/icons/icon-192.png'];
@@ -28,7 +28,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
 
-  if (url.pathname === '/api/ruta') return;
+  if (url.pathname === '/api/ruta' || url.pathname === '/version.json') return;
   if (url.pathname.startsWith('/api/')) {
     e.respondWith(
       fetch(req)

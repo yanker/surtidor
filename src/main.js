@@ -1373,6 +1373,32 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
 }
 
+// ---------- Actualizaciones ----------
+// En iPhone, la app instalada no se vuelve a cargar al abrirla: iOS reanuda la página que
+// tenía en memoria. Por eso, al volver a primer plano, se mira qué versión está publicada
+// y, si es otra, se recarga. No se recarga en mitad de un seguimiento GPS.
+async function comprobarVersion() {
+  if (!import.meta.env.PROD || !navigator.onLine || estado.siguiendo) return;
+  try {
+    const r = await fetch('/version.json', { cache: 'no-store' });
+    const { build } = await r.json();
+    if (!build || build === __BUILD__) return;
+    // Evita un bucle si la red aún sirviera la versión anterior
+    if (sessionStorage.getItem('surtidor:recargada') === build) return;
+    sessionStorage.setItem('surtidor:recargada', build);
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update().catch(() => {});
+    location.reload();
+  } catch {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') comprobarVersion();
+});
+window.addEventListener('pageshow', (ev) => {
+  if (ev.persisted) comprobarVersion();
+});
+comprobarVersion();
+
 // Arranque
 aplicarTema();
 render();

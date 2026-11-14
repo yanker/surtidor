@@ -13,3 +13,4 @@ android/.gradle
 android/build
 android/app/build
 android/local.properties
+hs_err_pid*.log

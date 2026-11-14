@@ -4,14 +4,13 @@
   "name": "Surtidor · Gasolineras baratas",
   "launcherName": "Surtidor",
   "display": "standalone",
-  "orientation": "portrait",
-  "themeColor": "#02081b",
-  "themeColorDark": "#02081b",
-  "navigationColor": "#02081b",
-  "navigationColorDark": "#02081b",
-  "navigationDividerColor": "#02081b",
-  "navigationDividerColorDark": "#02081b",
-  "backgroundColor": "#02081b",
+  "themeColor": "#02081B",
+  "themeColorDark": "#02081B",
+  "navigationColor": "#02081B",
+  "navigationColorDark": "#02081B",
+  "navigationDividerColor": "#02081B",
+  "navigationDividerColorDark": "#02081B",
+  "backgroundColor": "#02081B",
   "enableNotifications": false,
   "startUrl": "/?origen=twa",
   "iconUrl": "https://surtidor.vercel.app/icons/icon-512.png",
@@ -22,7 +21,7 @@
     "alias": "surtidor"
   },
   "appVersionName": "1.2.0",
-  "appVersionCode": 1,
+  "appVersionCode": 2,
   "shortcuts": [
     {
       "name": "Gasolina 95",
@@ -53,7 +52,10 @@
   "isMetaQuest": false,
   "fullScopeUrl": "https://surtidor.vercel.app/",
   "minSdkVersion": 24,
+  "orientation": "portrait",
   "fingerprints": [],
   "additionalTrustedOrigins": [],
-  "retainedBundles": []
+  "retainedBundles": [],
+  "displayOverride": [],
+  "appVersion": "1.2.0"
 }

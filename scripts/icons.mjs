@@ -106,4 +106,30 @@ await writeFile('index.html', nuevo);
     .toFile('public/og-image.png');
 }
 
-console.log(`Iconos, ${links.length} pantallas de inicio e imagen para compartir generadas`);
+// ---------- Google Play (app de Android, TWA): icono 512x512 e imagen destacada 1024x500 ----------
+{
+  await mkdir('android/play', { recursive: true });
+  await sharp('public/icons/maskable-512.png').png().toFile('android/play/icono-512.png');
+  const W = 1024;
+  const H = 500;
+  const icono = await sharp(svgSplash, { density: 600 }).resize(220, 220).png().toBuffer();
+  const capa = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+    <rect width="${W}" height="${H}" fill="#02081b"/>
+    <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
+      <text x="350" y="210" font-size="92" font-weight="800" fill="#e7effc">Surtidor</text>
+      <text x="354" y="270" font-size="34" font-weight="600" fill="#e7effc">Gasolineras baratas cerca de ti</text>
+      <text x="354" y="318" font-size="26" font-weight="500" fill="#a7b5ce">y en tu ruta, con precios oficiales y sin anuncios</text>
+    </g>
+  </svg>`);
+  const destacada = await sharp(capa)
+    .composite([{ input: icono, left: 90, top: Math.round((H - 220) / 2) }])
+    .png()
+    .toBuffer();
+  // Google Play no admite transparencia en la imagen destacada
+  await sharp(destacada)
+    .removeAlpha()
+    .png({ compressionLevel: 9 })
+    .toFile('android/play/imagen-destacada.png');
+}
+
+console.log(`Iconos, ${links.length} pantallas de inicio, imagen para compartir y recursos de Google Play generados`);

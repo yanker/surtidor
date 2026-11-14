@@ -106,6 +106,10 @@ Abre `http://localhost:5173`. El servidor de desarrollo ya sirve `/api/estacione
 
 `vercel.json` ya indica el build de Vite, la región de la función (`cdg1`, París, cerca de España) y las cabeceras del service worker y del manifest.
 
+## App de Android
+
+Surtidor se puede publicar en Google Play como **Trusted Web Activity** (la propia web a pantalla completa, sin reescribir nada). Configuración, recursos de la ficha y guía paso a paso en [`android/`](android/README.md). En iPhone se instala como PWA desde Safari.
+
 ## Estructura
 
 ```
@@ -126,9 +130,11 @@ Abre `http://localhost:5173`. El servidor de desarrollo ya sirve `/api/estacione
 │   ├── icons/               # Iconos PNG generados
 │   ├── splash/              # Pantallas de inicio de iOS generadas
 │   └── screenshots/         # Capturas para el diálogo de instalación
+├── android/                 # App de Android (TWA): configuración de Bubblewrap y ficha de Google Play
 ├── scripts/
 │   └── icons.mjs            # Generador de iconos y splash
 ├── index.html
+├── privacidad.html          # Política de privacidad (/privacidad)
 ├── vite.config.js
 └── vercel.json
 ```

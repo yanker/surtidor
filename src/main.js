@@ -44,6 +44,11 @@ const marcadores = new Map(); // id → marcador de Leaflet
   const p = new URLSearchParams(location.search);
   const c = p.get('combustible');
   if (c && COMBUSTIBLES.some((x) => x.k === c)) estado.combustible = c;
+  // App de Android (TWA): arranca con /?origen=twa y referrer android-app://. Se recuerda en la sesión
+  // porque la URL se limpia aquí mismo.
+  try {
+    if (p.get('origen') === 'twa' || document.referrer.startsWith('android-app://')) sessionStorage.setItem('surtidor:twa', '1');
+  } catch {}
   if (p.has('combustible') || p.has('origen')) history.replaceState(null, '', '/');
 }
 
@@ -1288,7 +1293,15 @@ const CLAVE_AVISO = 'surtidor:aviso-instalar';
 const SILENCIO_MS = 7 * 24 * 60 * 60 * 1000;
 const esIOS =
   /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const yaInstalada = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+// Dentro de la app de Android (TWA) no se invita a instalar (ver arranque)
+const esTWA = (() => {
+  try {
+    return sessionStorage.getItem('surtidor:twa') === '1';
+  } catch {
+    return false;
+  }
+})();
+const yaInstalada = () => esTWA || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 let eventoInstalar = null;
 let avisoPendiente = null; // { cuando, id }
 let avisoMostrado = false;

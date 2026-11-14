@@ -29,4 +29,8 @@ const version = () => ({
 export default defineConfig({
   define: { __BUILD__: JSON.stringify(BUILD) },
   plugins: [tailwindcss(), apiLocal(), version()],
+  build: {
+    // Dos páginas: la app y la política de privacidad (/privacidad)
+    rollupOptions: { input: { main: 'index.html', privacidad: 'privacidad.html' } },
+  },
 });

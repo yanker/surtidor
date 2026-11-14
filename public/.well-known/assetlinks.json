@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.vercel.surtidor",
+      "sha256_cert_fingerprints": [
+        "84:B3:FF:DF:FE:32:11:DA:6C:57:36:5B:F7:DD:04:56:E1:7E:0C:2A:D8:8D:99:71:3A:58:33:B9:ED:08:74:91"
+      ]
+    }
+  }
+]

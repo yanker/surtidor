@@ -1,0 +1,61 @@
+{
+  "packageId": "app.vercel.surtidor",
+  "host": "surtidor.vercel.app",
+  "name": "Surtidor · Gasolineras baratas",
+  "launcherName": "Surtidor",
+  "display": "standalone",
+  "themeColor": "#02081B",
+  "themeColorDark": "#02081B",
+  "navigationColor": "#02081B",
+  "navigationColorDark": "#02081B",
+  "navigationDividerColor": "#02081B",
+  "navigationDividerColorDark": "#02081B",
+  "backgroundColor": "#02081B",
+  "enableNotifications": false,
+  "startUrl": "/?origen=twa",
+  "iconUrl": "https://surtidor.vercel.app/icons/icon-512.png",
+  "maskableIconUrl": "https://surtidor.vercel.app/icons/maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./surtidor-upload.keystore",
+    "alias": "surtidor"
+  },
+  "appVersionName": "1.2.0",
+  "appVersionCode": 2,
+  "shortcuts": [
+    {
+      "name": "Gasolina 95",
+      "shortName": "Gasolina 95",
+      "url": "https://surtidor.vercel.app/?combustible=g95",
+      "chosenIconUrl": "https://surtidor.vercel.app/icons/icon-192.png"
+    },
+    {
+      "name": "Diésel",
+      "shortName": "Diésel",
+      "url": "https://surtidor.vercel.app/?combustible=diesel",
+      "chosenIconUrl": "https://surtidor.vercel.app/icons/icon-192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://surtidor.vercel.app/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": {
+      "enabled": true
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://surtidor.vercel.app/",
+  "minSdkVersion": 24,
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "displayOverride": [],
+  "appVersion": "1.2.0"
+}

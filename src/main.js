@@ -4,27 +4,9 @@ import 'leaflet/dist/leaflet.css';
 import { estaAbierta } from './horario.js';
 import { UPSTREAM, compactar, filtrarCercanas, distanciaKm } from '../lib/estaciones.js';
 import { DESVIOS, calcularViaje, prepararRuta, proyectar } from '../lib/ruta.js';
+import { COMBUSTIBLES, combustible, iconoCombustible } from './combustibles.js';
 
 // ---------- Configuración ----------
-// Cada combustible tiene su color claro (`suave`); el seleccionado se marca en el azul del tema
-const COMBUSTIBLES = [
-  { k: 'g95', nombre: 'Gasolina 95', corto: '95', sub: 'Gasolina',
-    suave: 'bg-emerald-100 text-emerald-800 ring-emerald-200 dark:bg-emerald-400/15 dark:text-emerald-300 dark:ring-emerald-400/25' },
-  { k: 'diesel', nombre: 'Diésel', corto: 'Diésel', sub: 'Gasóleo A',
-    suave: 'bg-amber-100 text-amber-800 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-400/25' },
-  { k: 'g98', nombre: 'Gasolina 98', corto: '98', sub: 'Gasolina',
-    suave: 'bg-teal-100 text-teal-800 ring-teal-200 dark:bg-teal-400/15 dark:text-teal-300 dark:ring-teal-400/25' },
-  { k: 'dieselPlus', nombre: 'Diésel+', corto: 'Diésel+', sub: 'Premium',
-    suave: 'bg-orange-100 text-orange-800 ring-orange-200 dark:bg-orange-400/15 dark:text-orange-300 dark:ring-orange-400/25' },
-  { k: 'g95e10', nombre: '95 E10', corto: 'E10', sub: 'Gasolina',
-    suave: 'bg-lime-100 text-lime-800 ring-lime-200 dark:bg-lime-400/15 dark:text-lime-300 dark:ring-lime-400/25' },
-  { k: 'glp', nombre: 'GLP', corto: 'GLP', sub: 'Autogás',
-    suave: 'bg-sky-100 text-sky-800 ring-sky-200 dark:bg-sky-400/15 dark:text-sky-300 dark:ring-sky-400/25' },
-  { k: 'gnc', nombre: 'GNC', corto: 'GNC', sub: 'Gas natural',
-    suave: 'bg-violet-100 text-violet-800 ring-violet-200 dark:bg-violet-400/15 dark:text-violet-300 dark:ring-violet-400/25' },
-  { k: 'adblue', nombre: 'AdBlue', corto: 'AdBlue', sub: 'Aditivo',
-    suave: 'bg-indigo-100 text-indigo-800 ring-indigo-200 dark:bg-indigo-400/15 dark:text-indigo-300 dark:ring-indigo-400/25' },
-];
 const LITROS_DEPOSITO = 50;
 const CLAVE_PREFS = 'surtidor:prefs';
 const CLAVE_TEMA = 'surtidor:tema';
@@ -83,6 +65,14 @@ const fechaBonita = (f) => {
   const r = String(f).match(/^(\S+)\s+(\d{1,2}:\d{2})/);
   return r ? `${r[1]} a las ${r[2]}` : f;
 };
+// En la cabecera de resultados: "de hoy, a las 13:21" o "del 06/11, a las 7:41"
+const fechaCorta = (f) => {
+  const r = String(f).match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}:\d{2})/);
+  if (!r) return `del ${fechaBonita(f)}`;
+  const hoy = new Date();
+  const esHoy = +r[1] === hoy.getDate() && +r[2] === hoy.getMonth() + 1 && +r[3] === hoy.getFullYear();
+  return esHoy ? `de hoy, a las ${r[4]}` : `del ${r[1]}/${r[2]}, a las ${r[4]}`;
+};
 const titulo = (s) => (s || '').toLowerCase().replace(/(^|[\s,.(/-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
 
 function leer(clave, porDefecto) {
@@ -100,30 +90,35 @@ function guardarPrefs() {
 }
 
 // ---------- Tema claro / oscuro ----------
-// Por defecto sigue al sistema. En cuanto el usuario elige uno con el botón,
-// se recuerda (localStorage, sin cookies) y ya no cambia con el sistema.
-const mqOscuro = matchMedia('(prefers-color-scheme: dark)');
-const esOscuro = () => document.documentElement.classList.contains('dark');
+// Por defecto, tema oscuro. El botón lo cambia solo mientras la pestaña siga
+// abierta (sessionStorage); al volver a abrir la app, oscuro otra vez.
+const esOscuro = () => document.documentElement.dataset.theme === 'dark';
 
 function aplicarTema() {
   let t = null;
   try {
-    t = localStorage.getItem(CLAVE_TEMA);
+    t = sessionStorage.getItem(CLAVE_TEMA);
   } catch {}
-  const oscuro = t ? t === 'dark' : mqOscuro.matches;
-  document.documentElement.classList.toggle('dark', oscuro);
-  $('meta[name=theme-color]').content = oscuro ? '#030a1a' : '#eef3fb';
-  $('#btn-tema').title = `Tema ${oscuro ? 'oscuro' : 'claro'}${t ? '' : ' (sistema)'} · pulsa para cambiar`;
+  const oscuro = t ? t === 'dark' : true;
+  document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
+  $('meta[name=theme-color]').content = token('--color-bg');
+  $('#btn-tema').title = `Tema ${oscuro ? 'oscuro' : 'claro'}. Pulsa para cambiar`;
 }
 
 $('#btn-tema').addEventListener('click', () => {
   const nuevo = esOscuro() ? 'light' : 'dark';
   try {
-    localStorage.setItem(CLAVE_TEMA, nuevo);
+    sessionStorage.setItem(CLAVE_TEMA, nuevo);
   } catch {}
   aplicarTema();
 });
-mqOscuro.addEventListener('change', aplicarTema);
+
+// Registro de novedades del pie
+$('#btn-novedades').addEventListener('click', (ev) => {
+  const abierto = ev.currentTarget.getAttribute('aria-expanded') === 'true';
+  ev.currentTarget.setAttribute('aria-expanded', String(!abierto));
+  $('#novedades').hidden = abierto;
+});
 
 // ---------- Datos ----------
 async function pedirEstaciones(lat, lon, radio) {
@@ -239,49 +234,42 @@ function sinUbicacion(motivo) {
 }
 
 // ---------- Render ----------
-const SEG_ON = 'bg-blue-600 text-white shadow';
+// Segmentos (modo, orden, vista): el elegido se levanta como una tarjeta; el azul queda para
+// el combustible seleccionado y las acciones principales
+const SEG_ON = 'bg-card text-fg shadow-sm ring-1 ring-line';
 const SEG_OFF = 'text-muted hover:text-fg';
 
-// Los 4 primeros son los habituales; el resto se despliega con «Más combustibles».
-// Si el seleccionado es uno de los menos comunes, se muestran todos para que se vea marcado.
-const HABITUALES = 4;
-let verTodosCombustibles = false;
-
+let tiraColocada = false;
 function renderControles() {
-  const extraSeleccionado = COMBUSTIBLES.findIndex((c) => c.k === estado.combustible) >= HABITUALES;
-  const todos = verTodosCombustibles || extraSeleccionado;
-  const btnMas = $('#btn-mas-combustibles');
-  btnMas.classList.toggle('hidden', extraSeleccionado);
-  btnMas.setAttribute('aria-expanded', String(todos));
-  $('#texto-mas-combustibles').textContent = todos
-    ? 'Menos combustibles'
-    : 'Más combustibles';
-  $('#flecha-mas-combustibles').classList.toggle('rotate-180', todos);
-
-  $('#combustibles').innerHTML = (todos ? COMBUSTIBLES : COMBUSTIBLES.slice(0, HABITUALES)).map(
-    (c) => {
-      const on = c.k === estado.combustible;
-      return `<button data-c="${c.k}" aria-pressed="${on}" class="flex min-h-14 flex-col items-center justify-center rounded-2xl px-1 py-2 ring-1 transition active:scale-95 ${
-        on ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-lg shadow-blue-600/40 scale-[1.03] dark:ring-blue-300' : c.suave + ' hover:brightness-95'
-      }">
-        <span class="text-base font-extrabold leading-tight">${c.corto}</span>
-        <span class="text-[11px] font-medium leading-tight opacity-80">${c.sub}</span>
+  const tira = $('#combustibles');
+  tira.innerHTML = COMBUSTIBLES.map((c) => {
+    const on = c.k === estado.combustible;
+    return `<button data-c="${c.k}" aria-pressed="${on}" title="${c.nombre}: ${c.sub}" class="flex min-h-16 min-w-[4.75rem] shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 ring-1 transition-colors motion-safe:active:scale-95 ${
+      on ? 'bg-accent text-accent-ink ring-accent' : 'bg-card text-fg ring-line hover:ring-accent/50'
+    }">
+        ${iconoCombustible(c, 'h-7 w-7')}
+        <span class="text-sm font-bold leading-tight">${c.corto}</span>
       </button>`;
-    },
-  ).join('');
+  }).join('');
+  // En el móvil la tira se desliza: al abrir, el combustible guardado tiene que verse
+  if (!tiraColocada) {
+    tiraColocada = true;
+    const b = tira.querySelector('[aria-pressed="true"]');
+    if (b && b.offsetLeft + b.offsetWidth > tira.clientWidth) tira.scrollLeft = b.offsetLeft - 16;
+  }
   $('#radio').value = String(estado.radio);
   $('#solo-abiertas').checked = estado.soloAbiertas;
   document.querySelectorAll('.orden').forEach((b) => {
-    b.className = `orden flex-1 rounded-xl px-3 text-sm font-semibold transition ${b.dataset.orden === estado.orden ? SEG_ON : SEG_OFF}`;
+    b.className = `orden flex-1 rounded-lg px-2.5 text-sm font-semibold transition-colors ${b.dataset.orden === estado.orden ? SEG_ON : SEG_OFF}`;
   });
   document.querySelectorAll('.vista').forEach((b) => {
-    b.className = `vista rounded-xl px-5 py-2 text-base font-semibold transition ${b.dataset.vista === estado.vista ? SEG_ON : SEG_OFF}`;
+    b.className = `vista rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${b.dataset.vista === estado.vista ? SEG_ON : SEG_OFF}`;
   });
   const viaje = estado.modo === 'viaje';
   document.querySelectorAll('.modo').forEach((b) => {
     const on = b.dataset.modo === estado.modo;
     b.setAttribute('aria-selected', String(on));
-    b.className = `modo flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-base font-semibold transition ${on ? SEG_ON : SEG_OFF}`;
+    b.className = `modo flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-2 py-2.5 text-base font-semibold transition-colors ${on ? SEG_ON : SEG_OFF}`;
   });
   $('#label-radio').classList.toggle('hidden', viaje);
   $('#label-tramo').classList.toggle('hidden', !viaje);
@@ -294,14 +282,14 @@ function renderControles() {
 // Verde / ámbar / rojo para el precio relativo (semántico, se mantiene en ambos temas)
 function colorPrecio(p, min, max) {
   const t = max > min ? (p - min) / (max - min) : 0;
-  if (t < 0.34) return { txt: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500', pill: 'bg-emerald-500 text-white' };
-  if (t < 0.67) return { txt: 'text-amber-600 dark:text-amber-300', bg: 'bg-amber-400', pill: 'bg-amber-400 text-slate-950' };
-  return { txt: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-500', pill: 'bg-rose-500 text-white' };
+  if (t < 0.34) return { txt: 'text-barato', bg: 'bg-barato-fill', pill: 'bg-barato-fill text-on-barato' };
+  if (t < 0.67) return { txt: 'text-medio', bg: 'bg-medio-fill', pill: 'bg-medio-fill text-on-medio' };
+  return { txt: 'text-caro', bg: 'bg-caro-fill', pill: 'bg-caro-fill text-on-caro' };
 }
 
 function badgeAbierta(a) {
-  if (a === true) return '<span class="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>Abierta</span>';
-  if (a === false) return '<span class="inline-flex items-center gap-1 font-semibold text-rose-600 dark:text-rose-400"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>Cerrada</span>';
+  if (a === true) return '<span class="inline-flex items-center gap-1 font-semibold text-barato"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>Abierta</span>';
+  if (a === false) return '<span class="inline-flex items-center gap-1 font-semibold text-caro"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>Cerrada</span>';
   return '';
 }
 
@@ -323,7 +311,7 @@ function render() {
     else if (hayDatos && !lista.length) {
       const cerradas = todas.length && estado.soloAbiertas;
       htmlEstado = panel(
-        '🔎',
+        'buscar',
         cerradas ? 'Todas cerradas ahora mismo' : 'Sin gasolineras en este tramo',
         cerradas
           ? `Hay ${todas.length} en este tramo, pero ninguna abierta según su horario.`
@@ -336,11 +324,11 @@ function render() {
   } else if (estado.cargando && !hayDatos) {
     htmlEstado = esqueleto();
   } else if (estado.error && !hayDatos) {
-    htmlEstado = panel('⚠️', 'No se pudieron cargar los precios', esc(estado.error), boton('reintentar', 'Reintentar'));
+    htmlEstado = panel('aviso', 'No se pudieron cargar los precios', esc(estado.error), boton('reintentar', 'Reintentar'));
   } else if (hayDatos && !lista.length) {
     const cerradas = todas.length && estado.soloAbiertas;
     htmlEstado = panel(
-      '🔎',
+      'buscar',
       cerradas ? 'Todas cerradas ahora mismo' : 'Sin gasolineras en este radio',
       cerradas
         ? `Hay ${todas.length} en ${estado.radio} km, pero ninguna abierta según su horario.`
@@ -354,16 +342,10 @@ function render() {
   $('#pestanas').classList.toggle('hidden', !mostrar);
   $('#pestanas').classList.toggle('flex', mostrar);
   $('#resumen').classList.toggle('hidden', !mostrar);
-  $('#resumen').classList.toggle('grid', mostrar);
   $('#lista').classList.toggle('hidden', !mostrar || estado.vista !== 'lista');
   $('#mapa-wrap').classList.toggle('hidden', !mostrar || estado.vista !== 'mapa');
 
   const fecha = viaje ? estado.viaje?.fecha : estado.datos?.fecha;
-  if (fecha) {
-    $('#fecha-datos').textContent = `Precios actualizados: ${fecha}`;
-    $('#info-fecha').textContent = ` · Actualizado el ${fechaBonita(fecha)}`;
-    $('#info-datos').classList.replace('hidden', 'flex');
-  }
   if (!mostrar) {
     $('#lista').innerHTML = '';
     return;
@@ -377,31 +359,37 @@ function render() {
   const ahorro = (media - min) * LITROS_DEPOSITO;
   ultimo = { lista, min, max, media };
 
+  const n = lista.length;
+  const donde = viaje
+    ? `en ${Math.round(kmTramo())} km de ruta`
+    : `a menos de ${estado.radio} km`;
   $('#contador').innerHTML = `
-    <span class="text-3xl font-extrabold tabular-nums tracking-tight text-fg">${lista.length}</span>
-    <span class="font-semibold">${lista.length === 1 ? 'gasolinera' : 'gasolineras'}${estado.soloAbiertas ? ' abiertas' : ''}</span>
-    <span class="mx-1 text-subtle">·</span>
-    <span class="text-3xl font-extrabold tabular-nums tracking-tight text-blue-600 dark:text-blue-400">${viaje ? Math.round(kmTramo()) : estado.radio}</span>
-    <span class="font-semibold">km${viaje ? ' de ruta' : ''}</span>`;
+    <h2 class="text-2xl font-bold tracking-tight"><span class="tabular-nums">${n}</span> ${n === 1 ? 'gasolinera' : 'gasolineras'}</h2>
+    <p class="text-sm text-muted">${estado.soloAbiertas ? (n === 1 ? 'Abierta, ' : 'Abiertas, ') : ''}${donde}${fecha ? `. Precios ${esc(fechaCorta(fecha))}` : ''}</p>`;
 
+  // Por precio, la primera tarjeta ya es la más barata; por distancia se recuerda arriba cuál es
+  const recordarBarata = estado.orden === 'distancia' && masBarata !== lista[0];
   $('#resumen').innerHTML = `
-    <div class="col-span-3 flex items-center gap-3 rounded-3xl bg-gradient-to-br from-blue-600 to-sky-500 p-4 text-white shadow-xl shadow-blue-600/25 sm:col-span-1 sm:block">
-      <div class="min-w-0 flex-1">
-        <p class="text-xs font-bold uppercase tracking-wider text-blue-100">Más barata</p>
-        <p class="truncate text-base font-semibold">${esc(titulo(masBarata.n) || 'Gasolinera')} · ${viaje ? 'en ' : ''}${km(masBarata.km)}</p>
-      </div>
-      <p class="text-4xl font-extrabold tabular-nums tracking-tight">${euro(min)}<span class="text-base font-bold">€</span></p>
-    </div>
-    <div class="col-span-3 grid grid-cols-2 gap-2 sm:col-span-2">
-      <div class="rounded-3xl bg-card p-4 shadow-sm ring-1 ring-line">
-        <p class="text-xs font-bold uppercase tracking-wider text-muted">Precio medio</p>
-        <p class="mt-1 text-3xl font-extrabold tabular-nums">${euro(media)}<span class="text-sm text-muted">€/L</span></p>
-      </div>
-      <div class="rounded-3xl bg-card p-4 shadow-sm ring-1 ring-line">
-        <p class="text-xs font-bold uppercase tracking-wider text-muted">Ahorro en ${LITROS_DEPOSITO} L</p>
-        <p class="mt-1 text-3xl font-extrabold tabular-nums text-blue-600 dark:text-blue-400">${euro2(ahorro)}</p>
-        <p class="text-xs text-subtle">vs. la media de la ${viaje ? 'ruta' : 'zona'}</p>
-      </div>
+    <div class="overflow-hidden rounded-2xl bg-card ring-1 ring-line">
+      ${recordarBarata ? `
+      <button type="button" data-ficha="${esc(masBarata.id)}" class="flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left transition-colors hover:bg-field">
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm text-muted">La más barata</span>
+          <span class="block truncate font-semibold">${esc(titulo(masBarata.n) || 'Gasolinera')}, ${viaje ? 'en ' : 'a '}${km(masBarata.km)}</span>
+        </span>
+        <span class="text-2xl font-extrabold tabular-nums text-barato">${euro(min)}<span class="text-sm font-bold">€</span></span>
+      </button>` : ''}
+      <dl class="grid grid-cols-2 divide-x divide-line">
+        <div class="px-4 py-3">
+          <dt class="text-sm text-muted">Precio medio</dt>
+          <dd class="text-2xl font-extrabold tabular-nums">${euro(media)}<span class="text-sm font-bold text-muted">€/L</span></dd>
+        </div>
+        <div class="px-4 py-3">
+          <dt class="text-sm text-muted">Ahorro en ${LITROS_DEPOSITO} L</dt>
+          <dd class="text-2xl font-extrabold tabular-nums text-barato">${euro2(ahorro)}</dd>
+          <dd class="text-xs text-muted">frente a la media de la ${viaje ? 'ruta' : 'zona'}</dd>
+        </div>
+      </dl>
     </div>`;
 
   $('#lista').innerHTML = lista
@@ -409,43 +397,41 @@ function render() {
       const p = e.pr[c];
       const col = colorPrecio(p, min, max);
       const dif = p - min;
+      const nombre = esc(titulo(e.n) || 'Gasolinera');
       const otros = COMBUSTIBLES.filter((x) => x.k !== c && e.pr[x.k])
         .slice(0, 3)
-        .map((x) => `<span class="rounded-md px-1.5 py-0.5 ring-1 ${x.suave}">${x.nombre} <b class="font-extrabold">${euro(e.pr[x.k])}</b></span>`)
+        .map((x) => `<span class="inline-flex items-center gap-1 rounded-lg bg-field py-0.5 pl-1 pr-1.5 text-muted ring-1 ring-line" title="${x.nombre}">${iconoCombustible(x, 'h-4 w-4')}${x.corto} <b class="font-bold tabular-nums text-fg">${euro(e.pr[x.k])}</b></span>`)
         .join('');
+      // Toda la tarjeta abre la ficha (data-ficha en el <article>), salvo el enlace «Ir».
+      // Con teclado, el botón del nombre hace lo mismo, sin anidar controles.
       return `
       <li class="aparecer" style="animation-delay:${Math.min(i, 12) * 25}ms">
-        <article data-ficha="${esc(e.id)}" tabindex="0" role="button" aria-label="Ver detalles de ${esc(titulo(e.n) || 'la gasolinera')}"
-          class="tarjeta relative overflow-hidden rounded-3xl bg-card p-4 shadow-sm ring-1 ring-line transition hover:ring-blue-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 active:scale-[0.99]">
-          <span class="absolute inset-y-0 left-0 w-1 ${col.bg}"></span>
+        <article data-ficha="${esc(e.id)}" class="relative cursor-pointer rounded-2xl bg-card p-4 ring-1 ring-line transition-shadow hover:ring-accent/50 has-[[data-ficha]:focus-visible]:ring-2 has-[[data-ficha]:focus-visible]:ring-accent-fg">
           <div class="flex items-start gap-3">
             <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                ${i === 0 && estado.orden === 'precio' ? '<span class="rounded-full bg-blue-600/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-blue-600 dark:bg-blue-400/15 dark:text-blue-300">Top</span>' : ''}
-                <h2 class="truncate text-lg font-bold">${esc(titulo(e.n) || 'Gasolinera')}</h2>
-              </div>
+              <h3 class="text-lg font-bold leading-snug">
+                <button type="button" data-ficha="${esc(e.id)}" class="text-left focus-visible:outline-none">${nombre}</button>
+              </h3>
               <p class="mt-0.5 line-clamp-2 text-base leading-snug text-muted">${esc(direccion(e))}</p>
-              <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-                <span class="inline-flex items-center gap-1 text-xl font-extrabold tabular-nums text-blue-600 dark:text-blue-400">
-                  <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>${viaje ? 'en ' : ''}${km(e.km)}
-                </span>
-                ${viaje ? `<span class="rounded-md bg-field px-1.5 py-0.5 font-semibold ring-1 ring-line" title="Distancia desde la carretera">desvío ${km(e.dv)}</span>` : ''}
-                ${badgeAbierta(e.abierta)}
-                <span class="truncate" title="${esc(e.h)}">${esc(e.h)}</span>
-              </div>
             </div>
-            <div class="text-right">
-              <p class="text-3xl font-extrabold tabular-nums tracking-tight ${col.txt}">${euro(p)}<span class="text-sm">€</span></p>
-              <p class="text-sm tabular-nums text-subtle">${dif > 0.0005 ? '+' + euro(dif) + ' €' : 'el mejor precio'}</p>
+            <div class="shrink-0 text-right">
+              <p class="text-3xl font-extrabold tabular-nums tracking-tight ${col.txt}">${euro(p)}<span class="text-sm font-bold">€</span></p>
+              <p class="text-sm tabular-nums text-muted">${dif > 0.0005 ? '+' + euro(dif) + ' €' : 'la más barata'}</p>
             </div>
           </div>
-          <div class="mt-3 flex items-center justify-between gap-2">
-            <div class="flex min-w-0 flex-wrap gap-1.5 text-xs">${otros}</div>
-            <span class="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded-xl px-2 py-2.5 text-sm font-semibold text-blue-600 dark:text-blue-400">
-              Detalles<svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+          <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <span class="inline-flex items-center gap-1 font-semibold">
+              <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4 text-muted" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>${viaje ? 'en ' : ''}${km(e.km)}
             </span>
-            <a href="${urlRuta(e)}" target="_blank" rel="noopener" class="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-base font-bold text-white shadow transition hover:bg-blue-500">
-              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 19-9-9 19-2-8-8-2z"/></svg>Ir
+            ${viaje ? `<span class="text-muted" title="Distancia desde la carretera">desvío ${km(e.dv)}</span>` : ''}
+            ${badgeAbierta(e.abierta)}
+            <span class="min-w-0 truncate text-muted" title="${esc(e.h)}">${esc(e.h)}</span>
+          </div>
+          <div class="mt-3 flex items-end justify-between gap-3">
+            <div class="flex min-w-0 flex-wrap gap-1.5 text-xs">${otros}</div>
+            <a href="${urlRuta(e)}" target="_blank" rel="noopener" aria-label="Cómo llegar a ${nombre}"
+              class="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-accent-soft px-4 py-2.5 text-sm font-bold text-accent-fg transition-colors hover:bg-accent hover:text-accent-ink">
+              <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 19-9-9 19-2-8-8-2z"/></svg>Ir
             </a>
           </div>
         </article>
@@ -457,36 +443,37 @@ function render() {
 }
 
 const boton = (accion, texto) =>
-  `<button data-accion="${accion}" class="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500">${texto}</button>`;
+  `<button data-accion="${accion}" class="mt-4 rounded-xl bg-accent px-4 py-2 text-sm font-bold text-blanco shadow-lg hover:bg-accent-hover">${texto}</button>`;
 
 function panel(icono, tituloTxt, texto, extra = '') {
-  return `<div class="aparecer rounded-3xl bg-card p-8 text-center shadow-sm ring-1 ring-line">
-    <div class="text-4xl">${icono}</div>
+  return `<div class="aparecer rounded-2xl bg-card p-8 text-center shadow-sm ring-1 ring-line">
+    <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-field text-muted ring-1 ring-line">${svg(icono, 'h-7 w-7')}</div>
     <h2 class="mt-3 text-xl font-bold">${tituloTxt}</h2>
     <p class="mt-1 text-base text-muted">${texto}</p>${extra}</div>`;
 }
 
 function panelSinUbicacion() {
   return panel(
-    '📍',
+    'pin',
     'Necesitamos tu ubicación',
     `${esc(estado.motivoSinUbicacion || '')} Activa la ubicación o busca una localidad o código postal.`,
     `${boton('ubicar', 'Usar mi ubicación')}
      <form id="form-buscar" class="mx-auto mt-4 flex max-w-sm gap-2">
-       <input name="q" required placeholder="Ej.: Valencia o 28013" class="min-w-0 flex-1 rounded-xl bg-field px-3 py-2 text-sm ring-1 ring-line placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-blue-500" />
-       <button class="rounded-xl bg-field px-4 py-2 text-sm font-semibold ring-1 ring-line hover:text-blue-600">Buscar</button>
+       <input name="q" required placeholder="Ej.: Valencia o 28013" class="min-w-0 flex-1 rounded-xl bg-field px-3 py-2 text-sm ring-1 ring-line-strong placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-accent" />
+       <button class="rounded-xl bg-field px-4 py-2 text-sm font-semibold ring-1 ring-line hover:text-accent-fg">Buscar</button>
      </form>
-     <p id="error-buscar" class="mt-2 text-xs text-rose-500"></p>`,
+     <p id="error-buscar" class="mt-2 text-xs text-caro"></p>`,
   );
 }
 
 function esqueleto(texto = 'Buscando las gasolineras más baratas cerca de ti…') {
-  const fila = `<div class="h-28 animate-pulse rounded-3xl bg-card ring-1 ring-line"></div>`;
-  return `<div class="space-y-2.5"><p class="px-1 text-base text-muted">${texto}</p>${fila.repeat(4)}</div>`;
+  const fila = `<div class="h-32 animate-pulse rounded-2xl bg-card ring-1 ring-line"></div>`;
+  return `<div class="space-y-2"><p class="px-1 text-base text-muted">${texto}</p>${fila.repeat(4)}</div>`;
 }
 
 // ---------- Mapa (Leaflet, carga perezosa) ----------
-// Teselas de OpenStreetMap (sin clave). En tema oscuro se invierten por CSS (.dark .leaflet-tile-pane)
+// Teselas de OpenStreetMap (sin clave). En tema oscuro se invierten por CSS ([data-theme='dark'] .leaflet-tile-pane)
+const token = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const TESELAS = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 let L = null;
 let mapa = null;
@@ -524,12 +511,12 @@ const puntoAzul = (clase = '') =>
   L.divIcon({
     className: '',
     iconSize: [20, 20],
-    html: `<div class="h-5 w-5 rounded-full border-2 border-white bg-blue-600 shadow-lg ring-4 ring-blue-500/30 ${clase}"></div>`,
+    html: `<div class="h-5 w-5 rounded-full border-2 border-blanco bg-accent shadow-lg ring-4 ring-accent/30 ${clase}"></div>`,
   });
 const banderita = (texto, clase) =>
   L.divIcon({
     className: 'pin-precio pin-top',
-    html: `<div class="rounded-lg px-2 py-1 text-xs font-extrabold text-white shadow-lg ring-2 ring-white ${clase}">${texto}</div>`,
+    html: `<div class="rounded-lg px-2 py-1 text-xs font-extrabold text-blanco shadow-lg ring-2 ring-blanco ${clase}">${texto}</div>`,
   });
 let marcadorYo = null;
 
@@ -546,10 +533,10 @@ async function renderMapa(lista, min, max) {
   let encuadre;
   if (ruta) {
     const v = estado.viaje;
-    L.polyline(ruta.coords, { color: '#1d4ed8', weight: 9, opacity: 0.25 }).addTo(capaMarcadores);
-    const linea = L.polyline(ruta.coords, { color: '#2563eb', weight: 5, opacity: 0.9 }).addTo(capaMarcadores);
-    L.marker(ruta.coords[0], { icon: banderita(esc(nombreCorto(v.origen)), 'bg-emerald-600'), zIndexOffset: 900 }).addTo(capaMarcadores);
-    L.marker(ruta.coords.at(-1), { icon: banderita(esc(nombreCorto(v.destino)), 'bg-rose-600'), zIndexOffset: 900 }).addTo(capaMarcadores);
+    L.polyline(ruta.coords, { color: token('--color-accent'), weight: 9, opacity: 0.25 }).addTo(capaMarcadores);
+    const linea = L.polyline(ruta.coords, { color: token('--color-accent'), weight: 5, opacity: 0.9 }).addTo(capaMarcadores);
+    L.marker(ruta.coords[0], { icon: banderita(esc(nombreCorto(v.origen)), 'bg-origen'), zIndexOffset: 900 }).addTo(capaMarcadores);
+    L.marker(ruta.coords.at(-1), { icon: banderita(esc(nombreCorto(v.destino)), 'bg-destino'), zIndexOffset: 900 }).addTo(capaMarcadores);
     if (estado.gps) {
       marcadorYo = L.marker([estado.gps.lat, estado.gps.lon], { icon: puntoAzul('animate-pulse'), zIndexOffset: 1000 }).addTo(capaMarcadores);
     }
@@ -557,7 +544,7 @@ async function renderMapa(lista, min, max) {
   } else {
     const { lat, lon } = estado.pos;
     const centro = L.latLng(lat, lon);
-    L.circle(centro, { radius: estado.radio * 1000, color: '#3b82f6', weight: 1.5, fillOpacity: 0.06 }).addTo(capaMarcadores);
+    L.circle(centro, { radius: estado.radio * 1000, color: token('--color-accent'), weight: 1.5, fillOpacity: 0.06 }).addTo(capaMarcadores);
     L.marker(centro, { icon: puntoAzul(), zIndexOffset: 1000 }).addTo(capaMarcadores);
     encuadre = centro.toBounds(estado.radio * 2000);
   }
@@ -570,16 +557,17 @@ async function renderMapa(lista, min, max) {
     const col = colorPrecio(e.pr[c], min, max);
     const icono = L.divIcon({
       className: top.has(e.id) ? 'pin-precio pin-top' : 'pin-precio',
-      html: `<div class="rounded-lg px-1.5 py-0.5 text-[11px] font-extrabold tabular-nums shadow-lg ring-1 ring-black/20 ${col.pill}">${euro(e.pr[c])}</div>`,
+      html: `<div class="rounded-lg px-1.5 py-0.5 text-[11px] font-extrabold tabular-nums shadow-lg ring-1 ring-velo ${col.pill}">${euro(e.pr[c])}</div>`,
     });
     const m = L.marker([e.lat, e.lon], { icon: icono, zIndexOffset: top.has(e.id) ? 500 : 0 })
       .bindPopup(
         `<p class="font-bold">${esc(titulo(e.n))}</p>
          <p class="text-sm text-muted">${esc(direccion(e))}</p>
-         <p class="mt-1 text-lg font-extrabold ${col.txt}">${euro(e.pr[c])} €/L <span class="text-xs font-normal text-muted">· ${viaje ? 'en ' : ''}${km(e.km)}${viaje ? ` · desvío ${km(e.dv)}` : ''}</span></p>
-         <div class="mt-1 flex gap-3 text-xs font-bold text-blue-600 dark:text-blue-400">
+         <p class="mt-1 text-lg font-extrabold tabular-nums ${col.txt}">${euro(e.pr[c])} €/L</p>
+         <p class="text-xs text-muted">${viaje ? `en ${km(e.km)}, desvío ${km(e.dv)}` : `a ${km(e.km)}`}</p>
+         <div class="mt-1 flex gap-3 text-xs font-bold text-accent-fg">
            <button type="button" data-ficha="${esc(e.id)}" class="hover:underline">Ver detalles</button>
-           <a href="${urlRuta(e)}" target="_blank" rel="noopener" class="hover:underline">Cómo llegar →</a>
+           <a href="${urlRuta(e)}" target="_blank" rel="noopener" class="hover:underline">Cómo llegar</a>
          </div>`,
       )
       .addTo(capaMarcadores);
@@ -620,10 +608,12 @@ const ICONO = {
   reloj: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   mapa: '<path d="m9 4-6 2v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/>',
   compartir: '<path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+  buscar: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+  aviso: '<path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17.5v.01"/>',
   copiar: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
 };
 const svg = (nombre, clase = 'h-5 w-5') =>
-  `<svg viewBox="0 0 24 24" class="${clase} shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${ICONO[nombre]}</svg>`;
+  `<svg aria-hidden="true" viewBox="0 0 24 24" class="${clase} shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${ICONO[nombre]}</svg>`;
 
 const urlWaze = (e) => `https://waze.com/ul?ll=${e.lat},${e.lon}&navigate=yes`;
 const urlApple = (e) => `https://maps.apple.com/?daddr=${e.lat},${e.lon}`;
@@ -657,10 +647,11 @@ function htmlFicha(e) {
   const precios = COMBUSTIBLES.filter((x) => e.pr[x.k])
     .map((x) => {
       const sel = x.k === c;
-      return `<li class="flex items-center justify-between gap-2 rounded-2xl px-3 py-2.5 ring-1 ${sel ? 'bg-blue-600 text-white ring-blue-600' : x.suave}">
-        <span class="min-w-0">
+      return `<li class="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 ring-1 ${sel ? 'bg-accent text-blanco ring-accent' : 'bg-field ring-line'}">
+        ${iconoCombustible(x, 'h-7 w-7')}
+        <span class="min-w-0 flex-1">
           <span class="block truncate text-sm font-bold">${x.nombre}</span>
-          <span class="block text-xs ${sel ? 'text-blue-100' : 'opacity-75'}">${sel ? 'Seleccionado' : x.sub}</span>
+          <span class="block truncate text-xs ${sel ? 'text-accent-ink/80' : 'text-muted'}">${sel ? 'Seleccionado' : x.sub}</span>
         </span>
         <span class="text-lg font-extrabold tabular-nums">${euro(e.pr[x.k])}<span class="text-xs">€</span></span>
       </li>`;
@@ -675,9 +666,9 @@ function htmlFicha(e) {
     .join('');
 
   const accion = (href, icono, texto) =>
-    `<a href="${href}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1 rounded-2xl bg-field px-2 py-3 text-sm font-semibold ring-1 ring-line transition hover:text-blue-600 dark:hover:text-blue-400">${svg(icono)}${texto}</a>`;
+    `<a href="${href}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1 rounded-2xl bg-field px-2 py-3 text-sm font-semibold ring-1 ring-line transition hover:text-accent-fg">${svg(icono)}${texto}</a>`;
   const accionBtn = (id, icono, texto) =>
-    `<button type="button" data-accion-ficha="${id}" class="flex flex-col items-center gap-1 rounded-2xl bg-field px-2 py-3 text-sm font-semibold ring-1 ring-line transition hover:text-blue-600 dark:hover:text-blue-400">${svg(icono)}<span>${texto}</span></button>`;
+    `<button type="button" data-accion-ficha="${id}" class="flex flex-col items-center gap-1 rounded-2xl bg-field px-2 py-3 text-sm font-semibold ring-1 ring-line transition hover:text-accent-fg">${svg(icono)}<span>${texto}</span></button>`;
 
   return `
     <div class="sticky top-0 z-10 bg-card/95 px-5 pt-3 pb-3 backdrop-blur">
@@ -686,7 +677,7 @@ function htmlFicha(e) {
         <div class="min-w-0 flex-1">
           <h2 id="ficha-nombre" class="text-2xl font-extrabold leading-tight">${esc(nombre)}</h2>
           <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span class="inline-flex items-center gap-1 font-bold text-blue-600 dark:text-blue-400">${svg('pin', 'h-4 w-4')}${enViaje ? `en ${km(e.km)} por la ruta` : `a ${km(e.km)}`}</span>
+            <span class="inline-flex items-center gap-1 font-semibold">${svg('pin', 'h-4 w-4 text-muted')}${enViaje ? `en ${km(e.km)} por la ruta` : `a ${km(e.km)}`}</span>
             ${enViaje ? `<span class="font-semibold text-muted">desvío ${km(e.dv)}</span>` : ''}
             ${badgeAbierta(e.abierta)}
           </div>
@@ -697,7 +688,7 @@ function htmlFicha(e) {
 
     <div class="space-y-5 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
       <section class="rounded-3xl bg-field p-4 ring-1 ring-line">
-        <p class="text-xs font-bold uppercase tracking-wider text-muted">${COMBUSTIBLES.find((x) => x.k === c).nombre}</p>
+        <p class="flex items-center gap-1.5 text-sm font-semibold text-muted">${iconoCombustible(combustible(c), 'h-5 w-5')}${combustible(c).nombre}</p>
         <div class="mt-1 flex items-end justify-between gap-3">
           <p class="text-5xl font-extrabold tabular-nums tracking-tight ${col.txt}">${euro(p)}<span class="text-lg">€/L</span></p>
           <p class="pb-1 text-right text-sm text-muted">
@@ -711,13 +702,13 @@ function htmlFicha(e) {
           </div>
           <div class="rounded-2xl bg-card px-3 py-2 ring-1 ring-line">
             <p class="text-xs text-muted">Frente a la más barata</p>
-            <p class="text-lg font-extrabold tabular-nums ${dif > 0.0005 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">${dif > 0.0005 ? '+' + euro2(dif * LITROS_DEPOSITO) : 'Es la mejor'}</p>
+            <p class="text-lg font-extrabold tabular-nums ${dif > 0.0005 ? 'text-caro' : 'text-barato'}">${dif > 0.0005 ? '+' + euro2(dif * LITROS_DEPOSITO) : 'Es la mejor'}</p>
           </div>
         </div>
       </section>
 
       <a href="${urlRuta(e)}" target="_blank" rel="noopener"
-        class="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-4 text-lg font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 active:scale-[0.99]">
+        class="flex items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-4 text-lg font-bold text-blanco shadow-lg transition hover:bg-accent-hover motion-safe:active:scale-[0.99]">
         ${svg('ir')}Cómo llegar
       </a>
       <div class="grid grid-cols-4 gap-2">
@@ -728,25 +719,25 @@ function htmlFicha(e) {
       </div>
 
       <section>
-        <h3 class="mb-2 text-sm font-bold uppercase tracking-wider text-muted">Dirección</h3>
-        <a href="${urlVer(e)}" target="_blank" rel="noopener" class="block rounded-2xl bg-field px-4 py-3 ring-1 ring-line transition hover:ring-blue-400/60">
+        <h3 class="mb-2 text-sm font-semibold text-muted">Dirección</h3>
+        <a href="${urlVer(e)}" target="_blank" rel="noopener" class="block rounded-2xl bg-field px-4 py-3 ring-1 ring-line transition hover:ring-accent/50">
           <p class="text-base font-semibold">${esc(titulo(e.d).replace(/[\s,]+$/, '') || 'Sin dirección')}</p>
           ${linea2 ? `<p class="text-sm text-muted">${esc(linea2)}</p>` : ''}
         </a>
       </section>
 
       <section>
-        <h3 class="mb-2 text-sm font-bold uppercase tracking-wider text-muted">Precios</h3>
-        <ul class="grid grid-cols-2 gap-2">${precios}</ul>
+        <h3 class="mb-2 text-sm font-semibold text-muted">Precios</h3>
+        <ul class="grid gap-2 sm:grid-cols-2">${precios}</ul>
       </section>
 
       ${horario ? `<section>
-        <h3 class="mb-2 flex items-center gap-1.5 text-sm font-bold uppercase tracking-wider text-muted">${svg('reloj', 'h-4 w-4')}Horario</h3>
+        <h3 class="mb-2 flex items-center gap-1.5 text-sm font-semibold text-muted">${svg('reloj', 'h-4 w-4')}Horario</h3>
         <ul class="divide-y divide-line rounded-2xl bg-field px-4 py-1 text-base ring-1 ring-line">${horario}</ul>
       </section>` : ''}
 
       <p class="text-center text-xs text-subtle">
-        Datos del Ministerio para la Transición Ecológica${estado.datos?.fecha ? ` · ${esc(fechaBonita(estado.datos.fecha))}` : ''}.<br />
+        Datos del Ministerio para la Transición Ecológica${estado.datos?.fecha ? `, actualizados el ${esc(fechaBonita(estado.datos.fecha))}` : ''}.<br />
         Precios orientativos; confírmalos en el surtidor.
       </p>
     </div>`;
@@ -784,7 +775,7 @@ dialogo.addEventListener('click', (ev) => {
 
 async function compartirFicha(boton) {
   const e = fichaActual;
-  const c = COMBUSTIBLES.find((x) => x.k === estado.combustible);
+  const c = combustible(estado.combustible);
   const texto = `${titulo(e.n)} · ${c.nombre} a ${euro(e.pr[c.k])} €/L\n${direccion(e)}`;
   try {
     if (navigator.share) {
@@ -817,18 +808,14 @@ dialogo.addEventListener('click', (ev) => {
 });
 
 // Abrir la ficha: tarjeta de la lista (salvo el botón «Ir») o «Ver detalles» del mapa
+$('#resumen').addEventListener('click', (ev) => {
+  const t = ev.target.closest('[data-ficha]');
+  if (t) abrirFicha(t.dataset.ficha);
+});
 $('#lista').addEventListener('click', (ev) => {
   if (ev.target.closest('a')) return;
   const t = ev.target.closest('[data-ficha]');
   if (t) abrirFicha(t.dataset.ficha);
-});
-$('#lista').addEventListener('keydown', (ev) => {
-  if (ev.key !== 'Enter' && ev.key !== ' ') return;
-  const t = ev.target.closest('article[data-ficha]');
-  if (t && ev.target === t) {
-    ev.preventDefault();
-    abrirFicha(t.dataset.ficha);
-  }
 });
 document.addEventListener(
   'click',
@@ -917,30 +904,30 @@ function renderViaje() {
     const mejorPrecio = Math.min(...datos.map((d) => d.min ?? Infinity));
     $('#rutas').innerHTML = `
       <p class="px-1 text-sm font-semibold text-muted">
-        ${v.rutas.length === 1 ? 'Ruta encontrada' : `${v.rutas.length} rutas`} de <b class="text-fg">${esc(nombreCorto(v.origen))}</b> a <b class="text-fg">${esc(nombreCorto(v.destino))}</b> · elige una
+        ${v.rutas.length === 1 ? 'Ruta encontrada' : `${v.rutas.length} rutas`} de <b class="text-fg">${esc(nombreCorto(v.origen))}</b> a <b class="text-fg">${esc(nombreCorto(v.destino))}</b>. Elige una
       </p>
       ${v.rutas
         .map((r, i) => {
           const d = datos[i];
           const sel = i === v.elegida;
           const etiquetas = [
-            i === 0 ? '<span class="rounded-full bg-blue-600/10 px-2 py-0.5 text-blue-700 dark:bg-blue-400/15 dark:text-blue-300">Más rápida</span>' : '',
-            v.rutas.length > 1 && d.min === mejorPrecio ? '<span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-700 dark:text-emerald-300">Más barata</span>' : '',
+            i === 0 ? '<span class="rounded-full bg-accent-soft px-2 py-0.5 text-accent-fg">Más rápida</span>' : '',
+            v.rutas.length > 1 && d.min === mejorPrecio ? '<span class="rounded-full bg-barato/15 px-2 py-0.5 text-barato">Más barata</span>' : '',
           ].join('');
-          return `<button type="button" data-ruta="${i}" class="aparecer block w-full rounded-3xl bg-card p-4 text-left shadow-sm ring-1 transition hover:ring-blue-400/60 active:scale-[0.99] ${sel ? 'ring-2 ring-blue-500' : 'ring-line'}" style="animation-delay:${i * 40}ms">
+          return `<button type="button" data-ruta="${i}" class="aparecer block w-full rounded-2xl bg-card p-4 text-left shadow-sm ring-1 transition hover:ring-accent/50 motion-safe:active:scale-[0.99] ${sel ? 'ring-2 ring-accent' : 'ring-line'}" style="animation-delay:${i * 40}ms">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <div class="flex flex-wrap gap-1.5 text-xs font-bold uppercase tracking-wide">${etiquetas}</div>
+                <div class="flex flex-wrap gap-1.5 text-xs font-semibold">${etiquetas}</div>
                 <p class="mt-1 text-lg font-bold leading-snug">${esc(r.resumen)}</p>
-                <p class="text-base text-muted"><b class="text-fg">${r.km.toLocaleString('es-ES', { maximumFractionDigits: 0 })} km</b> · ${duracion(r.min)}</p>
+                <p class="flex gap-3 text-base text-muted"><b class="text-fg">${r.km.toLocaleString('es-ES', { maximumFractionDigits: 0 })} km</b><span>${duracion(r.min)}</span></p>
               </div>
               <div class="shrink-0 text-right">
-                ${d.n ? `<p class="text-xs text-muted">desde</p><p class="text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">${euro(d.min)}<span class="text-sm">€</span></p>` : ''}
+                ${d.n ? `<p class="text-xs text-muted">desde</p><p class="text-2xl font-extrabold tabular-nums text-barato">${euro(d.min)}<span class="text-sm">€</span></p>` : ''}
               </div>
             </div>
             <div class="mt-2 flex items-center justify-between gap-2 text-sm">
               <span class="font-semibold text-muted">${d.n} ${d.n === 1 ? 'gasolinera' : 'gasolineras'}${estado.soloAbiertas ? ' abiertas' : ''} a menos de ${v.desvio} km</span>
-              <span class="inline-flex items-center gap-0.5 font-bold text-blue-600 dark:text-blue-400">${sel ? 'Elegida' : 'Elegir'}<svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
+              <span class="inline-flex items-center gap-0.5 font-bold text-accent-fg">${sel ? 'Elegida' : 'Elegir'}<svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
             </div>
           </button>`;
         })
@@ -964,28 +951,29 @@ function renderViaje() {
       lineaGps = `Estás a ${km(g.desvio)} de la ruta. Si has cambiado de camino, planifica de nuevo.`;
   }
   $('#barra-viaje').innerHTML = `
-    <div class="rounded-3xl bg-gradient-to-br from-blue-600 to-sky-500 p-4 text-white shadow-xl shadow-blue-600/25">
+    <div class="rounded-2xl bg-accent p-4 text-accent-ink">
       <div class="flex items-start gap-3">
         <div class="min-w-0 flex-1">
-          <p class="text-xs font-bold uppercase tracking-wider text-blue-100">${estado.siguiendo ? 'En marcha' : 'Tu viaje'}</p>
+          <p class="text-sm font-medium text-accent-ink/80">${estado.siguiendo ? 'En marcha' : 'Tu viaje'}</p>
           <p class="text-xl font-extrabold leading-tight">${esc(nombreCorto(v.origen))} → ${esc(nombreCorto(v.destino))}</p>
-          <p class="text-sm text-blue-50">${esc(elegida.resumen)} · ${Math.round(elegida.km)} km · ${duracion(elegida.min)}</p>
+          <p class="text-sm text-accent-ink/80">${esc(elegida.resumen)}</p>
+          <p class="flex gap-3 text-sm font-semibold"><span>${Math.round(elegida.km)} km</span><span>${duracion(elegida.min)}</span></p>
         </div>
-        <button type="button" data-accion-viaje="cambiar" class="shrink-0 rounded-xl bg-white/15 px-3 py-2 text-sm font-bold ring-1 ring-white/30 hover:bg-white/25">Cambiar</button>
+        <button type="button" data-accion-viaje="cambiar" class="shrink-0 rounded-xl bg-blanco/15 px-3 py-2 text-sm font-bold ring-1 ring-blanco/30 hover:bg-blanco/25">Cambiar</button>
       </div>
       ${estado.siguiendo ? `
         <div class="mt-3">
-          <div class="h-2 overflow-hidden rounded-full bg-white/25"><div class="h-full rounded-full bg-white transition-all" style="width:${total ? (llevas / total) * 100 : 0}%"></div></div>
+          <div class="h-2 overflow-hidden rounded-full bg-blanco/25"><div class="h-full origin-left rounded-full bg-blanco transition-transform" style="transform:scaleX(${total ? llevas / total : 0})"></div></div>
           <p class="mt-1.5 flex justify-between text-sm font-semibold"><span>Llevas ${km(llevas)}</span><span>Quedan ${km(Math.max(0, total - llevas))}</span></p>
-          ${lineaGps ? `<p class="mt-1 rounded-xl bg-white/15 px-3 py-2 text-sm">${lineaGps}</p>` : ''}
+          ${lineaGps ? `<p class="mt-1 rounded-xl bg-blanco/15 px-3 py-2 text-sm">${lineaGps}</p>` : ''}
         </div>` : ''}
       <button type="button" data-accion-viaje="${estado.siguiendo ? 'detener' : 'iniciar'}"
-        class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-lg font-bold shadow transition active:scale-[0.99] ${estado.siguiendo ? 'bg-white/15 ring-1 ring-white/40 hover:bg-white/25' : 'bg-white text-blue-700 hover:bg-blue-50'}">
+        class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-lg font-bold shadow transition motion-safe:active:scale-[0.99] ${estado.siguiendo ? 'bg-blanco/15 ring-1 ring-blanco/40 hover:bg-blanco/25' : 'bg-blanco text-accent hover:bg-blanco/90'}">
         ${estado.siguiendo
-          ? '<svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Detener seguimiento'
-          : '<svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 19-9-9 19-2-8-8-2z"/></svg>Iniciar viaje'}
+          ? '<svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Detener seguimiento'
+          : '<svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 19-9-9 19-2-8-8-2z"/></svg>Iniciar viaje'}
       </button>
-      <p class="mt-2 text-center text-xs text-blue-100">${estado.siguiendo
+      <p class="mt-2 text-center text-xs text-accent-ink/80">${estado.siguiendo
         ? 'Se muestran las gasolineras que tienes por delante. La pantalla se mantiene encendida.'
         : 'Al iniciar, el mapa te sigue y te enseña las gasolineras que vas a encontrar.'}</p>
     </div>`;
@@ -1231,10 +1219,6 @@ $('#combustibles').addEventListener('click', (ev) => {
   guardarPrefs();
   render();
 });
-$('#btn-mas-combustibles').addEventListener('click', () => {
-  verTodosCombustibles = !verTodosCombustibles;
-  renderControles();
-});
 $('#radio').addEventListener('change', (ev) => {
   estado.radio = Number(ev.target.value);
   guardarPrefs();
@@ -1400,6 +1384,32 @@ if (esIOS) programarAviso(8000);
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
 }
+
+// ---------- Actualizaciones ----------
+// En iPhone, la app instalada no se vuelve a cargar al abrirla: iOS reanuda la página que
+// tenía en memoria. Por eso, al volver a primer plano, se mira qué versión está publicada
+// y, si es otra, se recarga. No se recarga en mitad de un seguimiento GPS.
+async function comprobarVersion() {
+  if (!import.meta.env.PROD || !navigator.onLine || estado.siguiendo) return;
+  try {
+    const r = await fetch('/version.json', { cache: 'no-store' });
+    const { build } = await r.json();
+    if (!build || build === __BUILD__) return;
+    // Evita un bucle si la red aún sirviera la versión anterior
+    if (sessionStorage.getItem('surtidor:recargada') === build) return;
+    sessionStorage.setItem('surtidor:recargada', build);
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update().catch(() => {});
+    location.reload();
+  } catch {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') comprobarVersion();
+});
+window.addEventListener('pageshow', (ev) => {
+  if (ev.persisted) comprobarVersion();
+});
+comprobarVersion();
 
 // Arranque
 aplicarTema();

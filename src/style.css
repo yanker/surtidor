@@ -1,35 +1,82 @@
+/* Hallmark · v2.0.0 · checked: 2026-11-12 · genre: modern-minimal (inferred) · shape: app screen · scope: app
+ * theme: brand (el azul de Surtidor, ya en iconos, splash e imagen OG) · fuel: etiquetas EN 16942 · signature: la lista de precios
+ * critique: el precio manda; el azul solo marca lo seleccionado y la acción principal; verde, ámbar y rojo solo hablan de precio
+ * built: the project · redesign: full */
+/* Hallmark · waive 39b · fuel tiles at 64px, the EN 16942 label above its name · en Surtidor el selector de combustible es la firma de la pantalla: Diésel, 98 o GLP se eligen con el pulgar */
+/* Hallmark · dismissed 41 · accent-ink only sits on the accent fill, never on the page background */
+/* Hallmark · dropped btn-mas-combustibles, texto-mas-combustibles, flecha-mas-combustibles · la tira enseña los ocho combustibles, ya no hace falta desplegar */
+/* Hallmark · dropped info-datos, info-fecha, fecha-datos · 69 names the echo: la fecha de los precios sale una vez, en la cabecera de resultados */
 @import 'tailwindcss';
 
-/* Modo oscuro por clase (.dark en <html>), controlado por el sistema o por el botón */
-@custom-variant dark (&:where(.dark, .dark *));
+/* Modo oscuro por atributo (data-theme="dark" en <html>), controlado por el sistema o por el botón */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 
-  /* Colores semánticos (tema claro) */
-  --color-bg: #eef3fb;
-  --color-fg: #0b1730;
-  --color-muted: #5b6b85;
-  --color-subtle: #8a99b3;
-  --color-card: #ffffff;
-  --color-field: #eef3fb;
-  --color-line: #dbe4f3;
-  --color-tile: #e8eef8;
+  /* Superficies y texto (tema claro) */
+  --color-bg: oklch(0.96 0.014 262);
+  --color-fg: oklch(0.2 0.045 264);
+  --color-muted: oklch(0.5 0.04 262);
+  --color-subtle: oklch(0.53 0.035 262);
+  --color-card: oklch(0.995 0.003 262);
+  --color-field: oklch(0.955 0.012 262);
+  --color-line: oklch(0.9 0.02 262);
+  --color-line-strong: oklch(0.6 0.03 262);
+  --color-tile: oklch(0.93 0.016 262);
+  --color-velo: oklch(0.18 0.04 264 / 0.55);
+
+  /* Acento: el azul de la marca. Solo para lo seleccionado y la acción principal */
+  --color-accent: oklch(0.52 0.22 263);
+  --color-accent-hover: oklch(0.58 0.2 262);
+  --color-accent-ink: oklch(0.995 0.003 262);
+  --color-accent-fg: oklch(0.52 0.22 263);
+  --color-accent-soft: oklch(0.52 0.22 263 / 0.1);
+
+  /* Precio relativo: el único uso de verde, ámbar y rojo */
+  --color-barato: oklch(0.53 0.12 160);
+  --color-medio: oklch(0.57 0.14 60);
+  --color-caro: oklch(0.55 0.2 18);
+  --color-barato-fill: oklch(0.5 0.11 160);
+  --color-medio-fill: oklch(0.82 0.15 82);
+  --color-caro-fill: oklch(0.55 0.2 18);
+  --color-on-barato: oklch(0.995 0.003 262);
+  --color-on-medio: oklch(0.2 0.03 262);
+  --color-on-caro: oklch(0.995 0.003 262);
+
+  /* Ruta en el mapa */
+  --color-origen: oklch(0.5 0.11 160);
+  --color-destino: oklch(0.55 0.2 18);
+  --color-blanco: oklch(0.995 0.003 262);
 }
 
-.dark {
-  --color-bg: #030a1a;
-  --color-fg: #e8efff;
-  --color-muted: #94a6c6;
-  --color-subtle: #61728f;
-  --color-card: #0a1630;
-  --color-field: #0f1e3d;
-  --color-line: #1a2b4f;
-  --color-tile: #0b1220;
+[data-theme='dark'] {
+  --color-bg: oklch(0.14 0.045 264);
+  --color-fg: oklch(0.95 0.02 262);
+  --color-muted: oklch(0.77 0.04 262);
+  --color-subtle: oklch(0.68 0.035 262);
+  --color-card: oklch(0.22 0.06 264);
+  --color-field: oklch(0.26 0.06 264);
+  --color-line: oklch(0.32 0.06 264);
+  --color-line-strong: oklch(0.55 0.05 262);
+  --color-tile: oklch(0.18 0.04 264);
+  --color-velo: oklch(0.08 0.03 264 / 0.7);
+
+  --color-accent-fg: oklch(0.75 0.13 256);
+  --color-accent-soft: oklch(0.75 0.13 256 / 0.14);
+
+  --color-barato: oklch(0.78 0.15 162);
+  --color-medio: oklch(0.82 0.14 80);
+  --color-caro: oklch(0.72 0.16 15);
 }
 
-/* Cursor de mano en todo lo pulsable (Tailwind v4 lo deja en "default" para los botones) */
 @layer base {
+  html,
+  body {
+    overflow-x: clip;
+  }
+
+  /* Cursor de mano en todo lo pulsable (Tailwind v4 lo deja en "default" para los botones) */
   button:not(:disabled),
   [role='button'],
   select,
@@ -39,14 +86,32 @@
   }
   button:disabled {
     cursor: not-allowed;
+    opacity: 0.6;
+  }
+  :where(button, [role='button']):active:not(:disabled) {
+    filter: brightness(0.94);
+  }
+
+  /* Foco con teclado: un anillo del acento, sin transición */
+  :where(a, button, input, select, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-accent-fg);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+  }
+  input {
+    caret-color: var(--color-accent-fg);
   }
 }
 
 html {
   color-scheme: light;
   -webkit-tap-highlight-color: transparent;
+  scrollbar-color: var(--color-line-strong) transparent;
 }
-html.dark {
+html[data-theme='dark'] {
   color-scheme: dark;
 }
 
@@ -78,7 +143,7 @@ html.dark {
   border-radius: 9999px;
   font-size: 0;
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 2px #fff;
+  box-shadow: 0 0 0 2px var(--color-blanco);
 }
 
 .leaflet-container {
@@ -86,7 +151,7 @@ html.dark {
   font-family: inherit;
 }
 /* Mapa oscuro: invertimos las teselas claras de OSM */
-.dark .leaflet-tile-pane {
+[data-theme='dark'] .leaflet-tile-pane {
   filter: invert(1) hue-rotate(200deg) brightness(0.9) contrast(0.85) saturate(0.5);
 }
 
@@ -94,10 +159,10 @@ html.dark {
 .leaflet-popup-tip {
   background: var(--color-card);
   color: var(--color-fg);
-  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+  box-shadow: 0 10px 30px var(--color-velo);
 }
 .leaflet-popup-content {
-  margin: 12px 14px;
+  margin: 12px 16px;
 }
 .leaflet-container a.leaflet-popup-close-button {
   color: var(--color-muted);
@@ -131,11 +196,12 @@ html.dark {
   }
 }
 .aparecer {
-  animation: aparecer 0.35s ease-out both;
+  animation: aparecer 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Texto de la página de privacidad */
 .prosa h2 {
+  text-wrap: balance;
   margin-bottom: 0.5rem;
   font-size: 1.25rem;
   font-weight: 800;
@@ -154,12 +220,9 @@ html.dark {
 }
 .prosa a {
   font-weight: 600;
-  color: var(--color-blue-600);
+  color: var(--color-accent-fg);
   text-decoration: underline;
   text-underline-offset: 2px;
-}
-.dark .prosa a {
-  color: var(--color-blue-400);
 }
 .prosa code {
   border-radius: 0.375rem;
@@ -170,10 +233,10 @@ html.dark {
 
 /* Ficha de gasolinera */
 html:has(dialog[open]) {
-  overflow: hidden;
+  overflow: clip;
 }
 .ficha[open] {
-  animation: subir 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+  animation: subir 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .ficha[open]::backdrop {
   animation: fundido 0.25s ease-out both;
@@ -188,9 +251,6 @@ html:has(dialog[open]) {
     opacity: 0;
   }
 }
-.tarjeta {
-  cursor: pointer;
-}
 
 @keyframes subir {
   from {
@@ -199,5 +259,20 @@ html:has(dialog[open]) {
   }
 }
 .subir {
-  animation: subir 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  animation: subir 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Quien pide menos movimiento: nada se desliza, gira ni escala */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .girando {
+    animation: none;
+  }
 }

@@ -6,14 +6,15 @@
     <title>Privacidad · Surtidor</title>
     <meta name="description" content="Política de privacidad de Surtidor: sin cookies, sin seguimiento y sin recogida de datos personales." />
     <link rel="canonical" href="https://surtidor.vercel.app/privacidad" />
-    <meta name="theme-color" content="#eef3fb" />
+    <meta name="theme-color" content="#02081b" />
     <script>
       (function () {
         var t = null;
-        try { t = localStorage.getItem('surtidor:tema'); } catch (e) {}
-        var oscuro = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.classList.toggle('dark', oscuro);
-        document.querySelector('meta[name=theme-color]').content = oscuro ? '#030a1a' : '#eef3fb';
+        // Igual que la app: oscuro por defecto, o el tema elegido en esta pestaña
+        try { t = sessionStorage.getItem('surtidor:tema'); } catch (e) {}
+        var oscuro = t ? t === 'dark' : true;
+        document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
+        document.querySelector('meta[name=theme-color]').content = oscuro ? '#02081b' : '#edf2fc';
       })();
     </script>
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
@@ -22,15 +23,15 @@
   </head>
   <body class="min-h-dvh bg-bg text-fg antialiased">
     <main class="mx-auto max-w-2xl px-4 pb-16 pt-[max(1.5rem,env(safe-area-inset-top))]">
-      <a href="/" class="inline-flex items-center gap-1.5 rounded-xl bg-card px-3 py-2 text-sm font-semibold ring-1 ring-line hover:text-blue-600">
-        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      <a href="/" class="inline-flex items-center gap-1.5 rounded-xl bg-card px-3 py-2 text-sm font-semibold ring-1 ring-line hover:text-accent-fg">
+        <svg aria-hidden="true" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         Volver a Surtidor
       </a>
 
       <h1 class="mt-6 text-3xl font-extrabold tracking-tight">Política de privacidad</h1>
-      <p class="mt-1 text-sm text-muted">Última actualización: 8 de noviembre de 2026</p>
+      <p class="mt-1 text-sm text-muted">Última actualización: 14 de noviembre de 2026</p>
 
-      <div class="mt-6 rounded-3xl bg-blue-600/10 p-4 text-base font-semibold text-blue-800 ring-1 ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-200 dark:ring-blue-400/20">
+      <div class="mt-6 rounded-2xl bg-accent-soft p-4 text-base font-semibold ring-1 ring-line">
         En resumen: Surtidor no usa cookies, no tiene cuentas de usuario, no incluye publicidad ni analítica y no guarda tus datos en ningún servidor.
       </div>
 
@@ -54,7 +55,7 @@
           <h2>Datos guardados en tu dispositivo</h2>
           <p>Para recordar tus preferencias se usa el almacenamiento local del navegador (<code>localStorage</code>), que nunca sale de tu dispositivo:</p>
           <ul>
-            <li>Tema claro u oscuro, combustible, radio, orden y filtros elegidos.</li>
+            <li>Combustible, radio, orden y filtros elegidos.</li>
             <li>El último viaje planificado (origen, destino y gasolineras de la ruta), para recuperarlo si cierras la app.</li>
             <li>Si has descartado el aviso para instalar la app.</li>
           </ul>

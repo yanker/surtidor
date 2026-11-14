@@ -1,6 +1,7 @@
 node_modules
 dist
 .vercel
+.hallmark/
 
 # Android (TWA): nunca subir la clave de firma ni los paquetes generados
 *.keystore

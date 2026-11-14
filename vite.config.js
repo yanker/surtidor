@@ -15,8 +15,20 @@ const montar = (server) => {
 };
 const apiLocal = () => ({ name: 'api-local', configureServer: montar, configurePreviewServer: montar });
 
+// Cada build lleva un identificador propio y publica /version.json con él.
+// La app lo consulta al volver a primer plano: si no coincide, hay versión nueva y recarga.
+const BUILD = new Date().toISOString();
+const version = () => ({
+  name: 'version',
+  apply: 'build',
+  generateBundle() {
+    this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: BUILD }) });
+  },
+});
+
 export default defineConfig({
-  plugins: [tailwindcss(), apiLocal()],
+  define: { __BUILD__: JSON.stringify(BUILD) },
+  plugins: [tailwindcss(), apiLocal(), version()],
   build: {
     // Dos páginas: la app y la política de privacidad (/privacidad)
     rollupOptions: { input: { main: 'index.html', privacidad: 'privacidad.html' } },
